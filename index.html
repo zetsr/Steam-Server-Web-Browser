@@ -156,6 +156,28 @@
             z-index: 3;
             width: 150px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            /* Firefox 滚动条暗色风格 */
+            scrollbar-width: thin;
+            scrollbar-color: #555 #252525;
+        }
+        /* WebKit/Chromium 桌面端滚动条样式 */
+        .dropdown-content::-webkit-scrollbar,
+        .multiselect-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        .dropdown-content::-webkit-scrollbar-track,
+        .multiselect-content::-webkit-scrollbar-track {
+            background: #252525;
+        }
+        .dropdown-content::-webkit-scrollbar-thumb,
+        .multiselect-content::-webkit-scrollbar-thumb {
+            background-color: #555;
+            border-radius: 4px;
+            border: 2px solid #252525;
+        }
+        .dropdown-content::-webkit-scrollbar-thumb:hover,
+        .multiselect-content::-webkit-scrollbar-thumb:hover {
+            background-color: #666;
         }
         .dropdown-content div {
             padding: 6px 8px;
@@ -188,7 +210,8 @@
             margin-right: 8px;
             accent-color: #d0d0d0;
         }
-        .dropdown.open .dropdown-content, .multiselect.open .multiselect-content {
+        .dropdown.open .dropdown-content,
+        .multiselect.open .multiselect-content {
             display: block;
         }
         .status-container {
