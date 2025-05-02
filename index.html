@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html> 
+﻿<!DOCTYPE html>  
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -12,7 +12,6 @@
             background-color: #1a1a1a;
             color: #c0c0c0;
         }
-        /* H1 removed */
         .table-container {
             overflow-x: auto;
             margin-top: 20px;
@@ -115,7 +114,8 @@
             border: 2px solid #555;
             border-radius: 4px;
             background: linear-gradient(to bottom, #555, #333);
-            color: #d0c0d0;
+            /* 统一颜色，避免偏粉 */
+            color: #c0c0c0;
             cursor: pointer;
             width: 150px;
             text-align: left;
@@ -132,7 +132,7 @@
             right: 10px;
             top: 50%;
             transform: translateY(-50%);
-            color: #d0d0d0;
+            color: #c0c0c0;
             font-size: 10px;
         }
         .dropdown-btn:hover, .multiselect-btn:hover {
@@ -156,11 +156,9 @@
             z-index: 3;
             width: 150px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-            /* Firefox 滚动条暗色风格 */
             scrollbar-width: thin;
             scrollbar-color: #555 #252525;
         }
-        /* WebKit/Chromium 桌面端滚动条样式 */
         .dropdown-content::-webkit-scrollbar,
         .multiselect-content::-webkit-scrollbar {
             width: 8px;
@@ -259,7 +257,6 @@
         .hidden {
             display: none;
         }
-        /* 桌面端列宽度调整 (Original Widths) */
         th.country, td.country { width: 5%; text-align: center; }
         th.game, td.game { width: 10%; }
         th.name, td.name { width: 20%; }
@@ -271,7 +268,6 @@
         th.version, td.version { width: 8%; }
         th.latency, td.latency { width: 8%; }
 
-        /* Mobile View - Restore original column hiding and widths */
         @media (max-width: 768px) {
             body {
                 font-size: 14px;
@@ -284,23 +280,21 @@
             }
             .dropdown-btn, .multiselect-btn, .refresh-btn {
                 width: 100%;
-                margin-bottom: 8px; /* Keep consistent spacing */
+                margin-bottom: 8px;
                 padding: 10px 14px;
                 font-size: 14px;
             }
             .table-container {
                 overflow-x: auto;
             }
-            /* Let table width be determined by content on mobile */
             table {
-                 width: 100%; /* Back to 100% to fit screen initially */
-                 table-layout: auto; /* Allow columns to adjust slightly */ 
+                 width: 100%;
+                 table-layout: auto;
             }
             th, td {
                 font-size: 12px;
                 padding: 6px;
             }
-            /* Original Mobile Column Visibility & Widths */
             th.country, td.country { width: 15%; display: table-cell; }
             th.game, td.game { width: 25%; display: table-cell; }
             th.name, td.name { width: 40%; display: table-cell; white-space: normal; }
@@ -312,7 +306,7 @@
             th.latency, td.latency,
             th.os, td.os,
             th.isp, td.isp {
-                display: none; /* Hide these columns */
+                display: none;
             }
 
             .powered-by {
@@ -326,7 +320,6 @@
             }
         }
 
-        /* 新增：底部链接区域样式 */
         .footer-links {
             margin-top: 40px;
             text-align: center;
@@ -421,13 +414,11 @@
         let lastUpdateTime = null;
         let updateTimerInterval = null;
 
-        // --- WebSocket Reconnection Logic ---
         let ws = null;
         let reconnectDelay = 5000;
         const maxReconnectDelay = 60000;
         let reconnectTimeoutId = null;
         let reconnectCountdownIntervalId = null;
-        // --- End WebSocket Reconnection Logic ---
 
         function parseURLParams() {
             const params = new URLSearchParams(window.location.search);
@@ -484,10 +475,14 @@
                         updateStatus();
                     } else {
                         sessionStorage.removeItem('serverData');
+                        updateFiltersFromData();
+                        applyUrlParamsToFilters();
                     }
                 } catch (e) {
                     console.error("Failed to parse cached data:", e);
                     sessionStorage.removeItem('serverData');
+                    updateFiltersFromData();
+                    applyUrlParamsToFilters();
                 }
             } else {
                 updateFiltersFromData();
@@ -501,12 +496,10 @@
                 return false;
             }
             const gameDesc = server.game_description || '未知';
-            // 丢弃未知分类的服务器
-            if (gameDesc === '未知') {
-                return false;
-            }
+            if (gameDesc === '未知') return false;
             const key = `${server.ip}:${server.port}`;
             serverData.set(key, server);
+
             const regionDesc = server.country || 'unknown';
             let filtersChanged = false;
             if (!uniqueGames.has(gameDesc)) {
@@ -559,7 +552,7 @@
                 try {
                     const server = JSON.parse(event.data);
                     const dataAdded = addOrUpdateServer(server);
-                    if(dataAdded) {
+                    if (dataAdded) {
                         clearTimeout(window.renderTimeout);
                         window.renderTimeout = setTimeout(() => {
                             filterAndRenderTable();
@@ -769,25 +762,22 @@
         function sortServers(servers) {
             servers.sort((a, b) => {
                 if (currentSort === 'players') {
-                    const playersDiff =
-                        (b.current_players ?? -1) - (a.current_players ?? -1);
-                    if (playersDiff !== 0) return playersDiff;
+                    const diff = (b.current_players ?? -1) - (a.current_players ?? -1);
+                    if (diff) return diff;
                     return (a.name || '').localeCompare(b.name || '');
                 } else if (currentSort === 'name') {
                     return (a.name || '').localeCompare(b.name || '');
-                } else if (currentSort === 'latency') {
+                } else {
                     const latA = a.latency ?? Infinity;
                     const latB = b.latency ?? Infinity;
-                    const latencyDiff = latA - latB;
-                    if (latencyDiff !== 0) return latencyDiff;
+                    const diff = latA - latB;
+                    if (diff) return diff;
                     return (b.current_players ?? -1) - (a.current_players ?? -1);
                 }
-                return 0;
             });
         }
 
         function renderTable(servers) {
-            // 先收集当前所有行
             const existingRows = new Map();
             Array.from(tbody.children).forEach(row => {
                 if (row.dataset.key) existingRows.set(row.dataset.key, row);
@@ -803,11 +793,10 @@
                 let row = existingRows.get(key);
 
                 if (row) {
-                    // 更新已有行
                     updateCellContent(row.cells[1], server.game_description || '未知');
                     updateCellContent(row.cells[2], server.name || '未知');
                     const ipLink = row.cells[3].querySelector('.ip-link');
-                    if (ipLink && ipLink.textContent !== ipPort) {
+                    if (ipLink.textContent !== ipPort) {
                         ipLink.textContent = ipPort;
                         ipLink.href = `steam://connect/${ipPort}`;
                     }
@@ -819,7 +808,6 @@
                     updateCellContent(row.cells[8], server.version || '未知');
                     updateCellContent(row.cells[9], server.latency ?? '未知');
                 } else {
-                    // 新建行
                     row = tbody.insertRow();
                     row.dataset.key = key;
                     row.classList.toggle('zero-players', isZeroPlayers);
@@ -839,7 +827,6 @@
                     } else {
                         cellCountry.textContent = '?';
                     }
-
                     createCell(row, 'game', server.game_description || '未知');
                     createCell(row, 'name', server.name || '未知');
                     const cellIp = createCell(row, 'ip');
@@ -857,37 +844,29 @@
                     createCell(row, 'latency', server.latency ?? '未知');
                 }
 
-                // 设置 zero-players 类
                 row.classList.toggle('zero-players', isZeroPlayers);
-                row.dataset.key = key;
-                // 重新插入到 tbody，保证顺序
                 tbody.appendChild(row);
             });
 
-            // 删除旧行并从 serverData 中移除
+            // 只删除 DOM 行，不再删除 serverData 中的数据
             existingRows.forEach((row, key) => {
                 if (!updatedKeys.has(key)) {
                     tbody.removeChild(row);
-                    serverData.delete(key);
                 }
             });
-
-            // 删除完后重新生成过滤器列表（自动移除空分类）
-            updateFiltersFromData();
-            updateStatus(); 
         }
 
         function updateCellContent(cell, newContent) {
-            const contentStr = String(newContent);
-            if (cell.textContent !== contentStr) {
-                cell.textContent = contentStr;
+            const str = String(newContent);
+            if (cell.textContent !== str) {
+                cell.textContent = str;
             }
         }
 
-        function createCell(row, className, textContent = '') {
+        function createCell(row, className, text = '') {
             const cell = row.insertCell();
             cell.className = className;
-            cell.textContent = textContent;
+            cell.textContent = text;
             return cell;
         }
 
@@ -901,35 +880,31 @@
             clearInterval(updateTimerInterval);
             updateTimerInterval = setInterval(() => {
                 if (lastUpdateTime) {
-                    const secondsAgo = Math.floor((Date.now() - lastUpdateTime) / 1000);
-                    updateTimeSpan.textContent = secondsAgo;
+                    const sec = Math.floor((Date.now() - lastUpdateTime) / 1000);
+                    updateTimeSpan.textContent = sec;
                 }
             }, 1000);
         }
 
         async function refreshServers() {
-            const refreshBtn = document.querySelector('.refresh-btn');
-            refreshBtn.disabled = true;
-            const originalStatus = statusDiv.textContent;
-            if (!reconnectCountdownIntervalId) {
-                startLoadingAnimation('正在请求刷新...');
-            }
+            const btn = document.querySelector('.refresh-btn');
+            btn.disabled = true;
+            const orig = statusDiv.textContent;
+            if (!reconnectCountdownIntervalId) startLoadingAnimation('正在请求刷新...');
 
             try {
                 await axios.get('/api/servers');
                 setTimeout(() => {
-                    refreshBtn.disabled = false;
+                    btn.disabled = false;
                     if (!reconnectCountdownIntervalId &&
                         statusDiv.textContent.startsWith('正在请求刷新')) {
-                        statusDiv.textContent = originalStatus;
+                        statusDiv.textContent = orig;
                     }
                 }, 3000);
-            } catch (error) {
-                console.error("Error requesting server refresh:", error);
-                if (!reconnectCountdownIntervalId) {
-                    stopLoadingAnimation('刷新请求失败');
-                }
-                refreshBtn.disabled = false;
+            } catch (e) {
+                console.error("Error requesting server refresh:", e);
+                if (!reconnectCountdownIntervalId) stopLoadingAnimation('刷新请求失败');
+                btn.disabled = false;
             }
         }
 
@@ -940,14 +915,13 @@
             connectWebSocket();
         };
 
-        document.addEventListener('click', (event) => {
-            if (!gameFilter.contains(event.target)) gameFilter.classList.remove('open');
-            if (!regionFilter.contains(event.target)) regionFilter.classList.remove('open');
-            if (!sortDropdown.contains(event.target)) sortDropdown.classList.remove('open');
+        document.addEventListener('click', (e) => {
+            if (!gameFilter.contains(e.target)) gameFilter.classList.remove('open');
+            if (!regionFilter.contains(e.target)) regionFilter.classList.remove('open');
+            if (!sortDropdown.contains(e.target)) sortDropdown.classList.remove('open');
         });
     </script>
 
-    <!-- 整个服务器列表大矩形之外的最底部，三行居中文本 -->
     <div class="footer-links">
         <div>IP Data by <a href="https://ipinfo.io" target="_blank">ipinfo.io</a></div>
         <div><a href="https://developer.valvesoftware.com/wiki/Master_Server_Query_Protocol" target="_blank">Valve Master Server</a></div>
