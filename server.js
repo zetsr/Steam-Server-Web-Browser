@@ -16,6 +16,7 @@ const wss = new WebSocket.Server({ server, path: '/ws' });
 const GEO_CACHE_FILE = path.join(__dirname, 'geo_cache.json');
 const SERVER_LIST_FILE = path.join(__dirname, 'server_list.json');
 const TOKEN_FILE = path.join(__dirname, 'API_TOKEN.json');
+const APP_ID_FILE = path.join(__dirname, 'app_id.json');
 
 let clients = new Set();
 let geoCache = {};
@@ -143,8 +144,8 @@ async function queryServerInfo(ip, port) {
             version: serverInfo.version || '未知',
             current_players: serverInfo.players || 0,
             max_players,
-            os: serverInfo.environment === 'l' ? 'Linux' : 
-                serverInfo.environment === 'w' ? 'Windows' : 
+            os: serverInfo.environment === 'l' ? 'Linux' :
+                serverInfo.environment === 'w' ? 'Windows' :
                 serverInfo.environment === 'm' ? 'macOS' : '未知',
             players,
             latency
@@ -220,9 +221,17 @@ async function getMasterServerList(appId, filter = {}) {
 }
 
 async function updateServerIPs() {
-    const appIds = [1088090, 2520410, 1295900];
-    let newServers = [];
+    let appIds = [];
+    try {
+        const data = await fs.readFile(APP_ID_FILE, 'utf8');
+        appIds = JSON.parse(data);
+        log(`加载 app_id.json，包含 ${appIds.length} 个 APPID`);
+    } catch (err) {
+        log(`读取 app_id.json 失败: ${err.message}`);
+        return;
+    }
 
+    let newServers = [];
     for (const appId of appIds) {
         const servers = await getMasterServerList(appId);
         newServers = newServers.concat(servers);
@@ -230,10 +239,13 @@ async function updateServerIPs() {
     
     const uniqueNewServers = newServers.filter(server => !serverIPs.has(`${server.ip}:${server.port}`));
     if (uniqueNewServers.length > 0) {
-        const allServers = [...Array.from(serverIPs).map(key => {
-            const [ip, port] = key.split(':');
-            return { ip, port: parseInt(port) };
-        }), ...uniqueNewServers];
+        const allServers = [
+            ...Array.from(serverIPs).map(key => {
+                const [ip, port] = key.split(':');
+                return { ip, port: parseInt(port) };
+            }),
+            ...uniqueNewServers
+        ];
         await fs.writeFile(SERVER_LIST_FILE, JSON.stringify(allServers, null, 2), 'utf8');
         uniqueNewServers.forEach(server => serverIPs.add(`${server.ip}:${server.port}`));
         log(`新增 ${uniqueNewServers.length} 个服务器IP到 server_list.json`);
@@ -243,35 +255,35 @@ async function updateServerIPs() {
 }
 
 async function updateServerInfo() {
-    const servers = await fs.readFile(SERVER_LIST_FILE, 'utf8').then(data => JSON.parse(data));
-    const batchSize = 100;
-    for (let i = 0; i < servers.length; i += batchSize) {
-        const batch = servers.slice(i, i + batchSize);
-        const promises = batch.map(async server => {
-            const info = await queryServerInfo(server.ip, server.port);
-            if (info) {
-                const geoInfo = await getGeoInfo(server.ip);
-                return { ...info, ...geoInfo };
+    const servers = JSON.parse(await fs.readFile(SERVER_LIST_FILE, 'utf8'));
+    log(`开始并发查询 ${servers.length} 台服务器信息`);
+    const promises = servers.map(async server => {
+        const info = await queryServerInfo(server.ip, server.port);
+        if (info) {
+            const geoInfo = await getGeoInfo(server.ip);
+            return { ...info, ...geoInfo };
+        }
+        return null;
+    });
+
+    const results = await Promise.all(promises);
+    const validResults = results.filter(r => r !== null);
+    validResults.forEach(serverData => {
+        clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(serializeBigInt(serverData));
             }
-            return null;
         });
-        const results = await Promise.all(promises);
-        const validResults = results.filter(result => result !== null);
-        validResults.forEach(serverData => {
-            clients.forEach(client => {
-                if (client.readyState === WebSocket.OPEN) {
-                    client.send(serializeBigInt(serverData));
-                }
-            });
-        });
-        log(`推送了 ${validResults.length} 个服务器信息到客户端`);
-        await new Promise(resolve => setTimeout(resolve, 100)); // 每批次间延迟0.1秒
-    }
+    });
+    log(`推送了 ${validResults.length} 个服务器信息到客户端`);
 }
 
 Promise.all([initializeGeoCacheFile(), initializeServerListFile()]).then(() => {
+    // 每 60 秒更新一次服务器列表
     setInterval(updateServerIPs, 60 * 1000);
+    // 每 10 秒更新并推送一次所有服务器信息
     setInterval(updateServerInfo, 10 * 1000);
+    // 启动时立即执行一次
     updateServerIPs();
     updateServerInfo();
 });
