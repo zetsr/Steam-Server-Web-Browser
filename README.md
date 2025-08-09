@@ -1,6 +1,6 @@
 # Steam-Server-Web-Browser
 
-<img width="1896" height="879" alt="image" src="https://github.com/user-attachments/assets/36ab514f-fa75-40db-984f-a57a91cf24c1" />
+<img width="1888" height="867" alt="image" src="https://github.com/user-attachments/assets/1afa991f-2cc7-403b-80b7-e497c8c81428" />
 
 ## 使用方法
 
