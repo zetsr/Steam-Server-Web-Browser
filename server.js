@@ -21,6 +21,7 @@ const APP_ID_FILE = path.join(__dirname, 'app_id.json');
 let clients = new Set();
 let geoCache = {};
 let serverIPs = new Set();
+let serverDataCache = []; // 新增：缓存服务器数据
 
 function log(message) {
     const now = new Date();
@@ -37,6 +38,19 @@ function serializeBigInt(obj) {
 wss.on('connection', (ws) => {
     clients.add(ws);
     log('新客户端已连接');
+
+    // 立即推送缓存中的服务器数据
+    if (serverDataCache.length > 0) {
+        log('向新客户端推送缓存的服务器数据');
+        serverDataCache.forEach(serverData => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(serializeBigInt(serverData));
+            }
+        });
+    } else {
+        log('缓存为空，等待下一次服务器数据更新');
+    }
+
     ws.on('close', () => {
         clients.delete(ws);
         log('客户端已断开');
@@ -267,22 +281,24 @@ async function updateServerInfo() {
     });
 
     const results = await Promise.all(promises);
-    const validResults = results.filter(r => r !== null);
-    validResults.forEach(serverData => {
+    serverDataCache = results.filter(r => r !== null); // 更新缓存
+    log(`更新服务器数据缓存，包含 ${serverDataCache.length} 个有效服务器`);
+
+    serverDataCache.forEach(serverData => {
         clients.forEach(client => {
             if (client.readyState === WebSocket.OPEN) {
                 client.send(serializeBigInt(serverData));
             }
         });
     });
-    log(`推送了 ${validResults.length} 个服务器信息到客户端`);
+    log(`推送了 ${serverDataCache.length} 个服务器信息到 ${clients.size} 个客户端`);
 }
 
 Promise.all([initializeGeoCacheFile(), initializeServerListFile()]).then(() => {
     // 每 60 秒更新一次服务器列表
     setInterval(updateServerIPs, 60 * 1000);
-    // 每 10 秒更新并推送一次所有服务器信息
-    setInterval(updateServerInfo, 10 * 1000);
+    // 每 3 秒更新并推送一次所有服务器信息
+    setInterval(updateServerInfo, 3 * 1000);
     // 启动时立即执行一次
     updateServerIPs();
     updateServerInfo();

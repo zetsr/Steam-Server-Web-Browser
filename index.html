@@ -1,931 +1,912 @@
-﻿<!DOCTYPE html>  
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>服务器列表</title>
-    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #1a1a1a;
-            color: #c0c0c0;
-        }
-        .table-container {
-            overflow-x: auto;
-            margin-top: 20px;
-        }
-        table {
-            border-collapse: separate;
-            border-spacing: 0;
-            width: 100%;
-            background-color: #252525;
-            border: 2px solid #404040;
-            box-shadow: inset 0 0 5px #000, 0 2px 5px rgba(0,0,0,0.5);
-            table-layout: fixed;
-        }
-        th, td {
-            border: 1px solid #404040;
-            padding: 8px;
-            text-align: left;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            box-sizing: border-box;
-            vertical-align: middle;
-        }
-        th {
-            background: linear-gradient(to bottom, #4d4d4d, #333);
-            color: #d0d0d0;
-            font-weight: bold;
-            text-shadow: 0 1px 1px #000;
-            position: sticky;
-            top: 0;
-            z-index: 2;
-        }
-        td {
-            background-color: #2a2a2a;
-            max-width: 200px;
-        }
-        tr.zero-players td {
-            background-color: #202020;
-            color: #808080;
-        }
-        tr:hover td {
-            background-color: #3a3a3a;
-            color: #fff;
-        }
-        .ip-link {
-            color: inherit;
-            text-decoration: none;
-            cursor: pointer;
-        }
-        .ip-link:hover {
-            text-decoration: underline;
-        }
-        .controls {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 20px;
-            padding: 10px;
-            background-color: #222;
-            border: 2px solid #404040;
-            box-shadow: inset 0 0 3px #000;
-        }
-        .refresh-btn {
-            padding: 8px 16px;
-            background: linear-gradient(to bottom, #555, #333);
-            color: #d0d0d0;
-            border: 2px solid #555;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            text-shadow: 0 1px 1px #000;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-            transition: all 0.2s ease;
-        }
-        .refresh-btn:hover {
-            background: linear-gradient(to bottom, #666, #444);
-            border-color: #666;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
-        }
-        .refresh-btn:active {
-            background: linear-gradient(to bottom, #444, #222);
-            border-color: #444;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
-        }
-        .refresh-btn:disabled {
-            background: #333;
-            color: #666;
-            border-color: #444;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-        .dropdown, .multiselect {
-            position: relative;
-            display: inline-block;
-        }
-        .dropdown-btn, .multiselect-btn {
-            padding: 8px 16px;
-            font-size: 14px;
-            border: 2px solid #555;
-            border-radius: 4px;
-            background: linear-gradient(to bottom, #555, #333);
-            /* 统一颜色，避免偏粉 */
-            color: #c0c0c0;
-            cursor: pointer;
-            width: 150px;
-            text-align: left;
-            overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-            transition: all 0.2s ease;
-            position: relative;
-        }
-        .dropdown-btn::after, .multiselect-btn::after {
-            content: '▼';
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #c0c0c0;
-            font-size: 10px;
-        }
-        .dropdown-btn:hover, .multiselect-btn:hover {
-            background: linear-gradient(to bottom, #666, #444);
-            border-color: #666;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
-        }
-        .dropdown-btn:active, .multiselect-btn:active {
-            background: linear-gradient(to bottom, #444, #222);
-            border-color: #444;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
-        }
-        .dropdown-content, .multiselect-content {
-            display: none;
-            position: absolute;
-            background: #252525;
-            border: 2px solid #404040;
-            border-radius: 2px;
-            max-height: 150px;
-            overflow-y: auto;
-            z-index: 3;
-            width: 150px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-            scrollbar-width: thin;
-            scrollbar-color: #555 #252525;
-        }
-        .dropdown-content::-webkit-scrollbar,
-        .multiselect-content::-webkit-scrollbar {
-            width: 8px;
-        }
-        .dropdown-content::-webkit-scrollbar-track,
-        .multiselect-content::-webkit-scrollbar-track {
-            background: #252525;
-        }
-        .dropdown-content::-webkit-scrollbar-thumb,
-        .multiselect-content::-webkit-scrollbar-thumb {
-            background-color: #555;
-            border-radius: 4px;
-            border: 2px solid #252525;
-        }
-        .dropdown-content::-webkit-scrollbar-thumb:hover,
-        .multiselect-content::-webkit-scrollbar-thumb:hover {
-            background-color: #666;
-        }
-        .dropdown-content div {
-            padding: 6px 8px;
-            cursor: pointer;
-            color: #c0c0c0;
-        }
-        .dropdown-content div:hover {
-            background-color: #3a3a3a;
-            color: #fff;
-        }
-        .multiselect-content {
-            padding: 5px 0;
-        }
-        .multiselect-content label {
-            display: flex;
-            align-items: center;
-            padding: 6px 8px;
-            cursor: pointer;
-            color: #c0c0c0;
-            border-bottom: 1px solid #404040;
-        }
-        .multiselect-content label:last-child {
-            border-bottom: none;
-        }
-        .multiselect-content label:hover {
-            background-color: #3a3a3a;
-            color: #fff;
-        }
-        .multiselect-content input[type="checkbox"] {
-            margin-right: 8px;
-            accent-color: #d0d0d0;
-        }
-        .dropdown.open .dropdown-content,
-        .multiselect.open .multiselect-content {
-            display: block;
-        }
-        .status-container {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            margin-top: 10px;
-            margin-bottom: 10px;
-            font-size: 14px;
-            position: relative;
-            min-height: 40px;
-        }
-        .status {
-            color: #808080;
-            text-align: center;
-        }
-        .last-updated {
-            color: #808080;
-            text-align: center;
-            margin-top: 5px;
-        }
-        .powered-by {
-            color: #d0d0d0;
-            font-family: 'Great Vibes', cursive;
-            font-size: 16px;
-            position: absolute;
-            right: 0;
-            bottom: 0;
-        }
-        .powered-by a {
-            color: #d0d0d0;
-            text-decoration: none;
-        }
-        .powered-by a:hover {
-            text-decoration: underline;
-        }
-        .flag-icon {
-            width: 26px;
-            height: 18px;
-            vertical-align: middle;
-            margin-right: 8px;
-            flex-shrink: 0;
-        }
-        .hidden {
-            display: none;
-        }
-        th.country, td.country { width: 5%; text-align: center; }
-        th.game, td.game { width: 10%; }
-        th.name, td.name { width: 20%; }
-        th.ip, td.ip { width: 15%; }
-        th.isp, td.isp { width: 20%; }
-        th.os, td.os { width: 8%; }
-        th.players, td.players { width: 8%; }
-        th.map, td.map { width: 8%; }
-        th.version, td.version { width: 8%; }
-        th.latency, td.latency { width: 8%; }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>服务器列表</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Great+Vibes&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#07080a;
+      --muted:#9aa3b2;
+      --text:#d7e1ea;
+      --accent:#6ee7b7;
+      --accent-2:#4fd6a6;
+      --glass-border: rgba(255,255,255,0.04);
+      --radius:12px;
+      --shadow-strong: 0 8px 30px rgba(2,6,23,0.7);
+      --ease: cubic-bezier(.16,.84,.3,1);
+    }
 
-        @media (max-width: 768px) {
-            body {
-                font-size: 14px;
-                margin: 10px;
-            }
-            .controls {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 8px;
-            }
-            .dropdown-btn, .multiselect-btn, .refresh-btn {
-                width: 100%;
-                margin-bottom: 8px;
-                padding: 10px 14px;
-                font-size: 14px;
-            }
-            .table-container {
-                overflow-x: auto;
-            }
-            table {
-                 width: 100%;
-                 table-layout: auto;
-            }
-            th, td {
-                font-size: 12px;
-                padding: 6px;
-            }
-            th.country, td.country { width: 15%; display: table-cell; }
-            th.game, td.game { width: 25%; display: table-cell; }
-            th.name, td.name { width: 40%; display: table-cell; white-space: normal; }
-            th.players, td.players { width: 20%; display: table-cell; }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:"Inter",Arial,sans-serif;-webkit-font-smoothing:antialiased;background:var(--bg);color:var(--text)}
+    body::before{
+      content:"";
+      position:fixed;
+      inset:-20%;
+      z-index:-2;
+      background:
+        radial-gradient(800px 400px at 10% 20%, rgba(110,231,183,0.06), transparent 15%),
+        radial-gradient(700px 350px at 85% 80%, rgba(120,126,255,0.04), transparent 10%),
+        conic-gradient(from 180deg at 50% 50%, rgba(255,255,255,0.01), rgba(0,0,0,0.02));
+      filter: blur(40px) saturate(105%);
+      transform: rotate(-2deg);
+      animation: bgDrift 18s linear infinite alternate;
+    }
+    @keyframes bgDrift { 0% { transform: translateY(0) scale(1) rotate(-2deg); } 100% { transform: translateY(-8px) scale(1.02) rotate(-1deg); } }
 
-            th.map, td.map,
-            th.ip, td.ip,
-            th.version, td.version,
-            th.latency, td.latency,
-            th.os, td.os,
-            th.isp, td.isp {
-                display: none;
-            }
+    .app{ max-width:1200px; width: calc(100% - 56px); margin:28px auto; padding:20px; border-radius:16px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00)); box-shadow: var(--shadow-strong); position:relative; overflow:visible; border:1px solid rgba(255,255,255,0.02); backdrop-filter: blur(6px) saturate(1.05); }
 
-            .powered-by {
-                position: static;
-                margin-top: 10px;
-                text-align: center;
-                font-size: 14px;
-            }
-            .status-container {
-                align-items: center;
-            }
-        }
+    .header{ display:flex; align-items:center; gap:16px; margin-bottom:16px; }
+    .logo{ width:64px; height:64px; border-radius:10px; background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)); display:flex; align-items:center; justify-content:center; border:1px solid var(--glass-border); box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 6px 18px rgba(2,6,23,0.6); flex-shrink:0 }
+    .title-wrap{ flex:1; min-width:0 }
+    .title{ font-size:18px; font-weight:600; color:var(--text); margin:0; }
+    .subtitle{ margin-top:4px; color:var(--muted); font-size:13px }
 
-        .footer-links {
-            margin-top: 40px;
-            text-align: center;
-            font-size: 14px;
-            color: #888;
-            line-height: 1.8;
-        }
-        .footer-links a {
-            color: #888;
-            text-decoration: none;
-        }
-        .footer-links a:hover {
-            text-decoration: underline;
-            color: #ccc;
-        }
-        @media (max-width: 768px) {
-            .footer-links {
-                font-size: 13px;
-                padding-bottom: 20px;
-            }
-        }
-    </style>
+    .controls{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px; border-radius:12px; background: linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.008)); border:1px solid var(--glass-border); box-shadow: inset 0 1px 0 rgba(255,255,255,0.02); margin-bottom:16px; }
+
+    .btn{ appearance:none; border:none; outline:none; padding:10px 14px; border-radius:10px; background: linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.008)); color:var(--text); font-weight:600; font-size:13px; cursor:pointer; border:1px solid rgba(255,255,255,0.03); box-shadow:0 6px 18px rgba(2,6,23,0.5); transition: transform .14s var(--ease), box-shadow .14s var(--ease); display:inline-flex; align-items:center; gap:8px; min-height:40px; }
+    .btn:hover{ transform: translateY(-3px); box-shadow: 0 12px 30px rgba(2,6,23,0.65); }
+    .btn:active{ transform: translateY(-1px) scale(.997); }
+
+    .refresh-btn{ background: linear-gradient(180deg, rgba(110,231,183,0.06), rgba(110,231,183,0.02)); border:1px solid rgba(110,231,183,0.12); color:var(--text); padding:10px 18px; border-radius:10px; font-weight:700; }
+    .refresh-btn:disabled{ opacity:0.5; transform:none; cursor:not-allowed; box-shadow:none; }
+
+    .dropdown, .multiselect{ position:relative; display:inline-block; min-width:150px; }
+    .dropdown-btn, .multiselect-btn{ width:100%; text-align:left; padding:10px 14px; border-radius:10px; background:transparent; color:var(--text); border:1px solid rgba(255,255,255,0.03); cursor:pointer; font-weight:600; font-size:13px; }
+    .dropdown-btn::after, .multiselect-btn::after { content: '▾'; float:right; opacity:0.8; font-size:12px; transition: transform .18s var(--ease); }
+    .dropdown.open .dropdown-btn::after, .multiselect.open .multiselect-btn::after { transform: rotate(180deg); }
+
+    .dropdown-content, .multiselect-content{
+      position:absolute; top:calc(100% + 10px); left:0;
+      min-width:220px; max-width:360px;
+      background: rgba(14,16,18,0.96);
+      color:var(--text);
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 18px 60px rgba(0,0,0,0.75);
+      padding:8px;
+      z-index:120;
+      transform-origin: top center;
+      opacity:0; pointer-events:none;
+      transform: translateY(-6px) scale(.98);
+      transition: opacity .18s var(--ease), transform .18s var(--ease);
+      backdrop-filter: blur(12px) saturate(1.05);
+    }
+    .dropdown.open .dropdown-content, .multiselect.open .multiselect-content { opacity:1; pointer-events:auto; transform: translateY(0) scale(1); }
+
+    .dropdown-content div, .multiselect-content label { display:flex; gap:8px; align-items:center; padding:8px 10px; border-radius:8px; cursor:pointer; color:var(--text); font-size:13px; }
+    .dropdown-content div:hover, .multiselect-content label:hover { background: rgba(255,255,255,0.02); }
+    .multiselect-content{ max-height:320px; overflow:auto; width:260px; }
+    .multiselect-content input[type="checkbox"] { width:16px; height:16px; accent-color:var(--accent); flex-shrink:0; }
+    .flag-icon{ width:28px; height:18px; border-radius:3px; object-fit:cover; flex-shrink:0; }
+
+    .status-container{ display:flex; align-items:center; gap:12px; margin:6px 0 16px; position:relative; min-height:48px; padding:8px 12px; border-radius:12px; border:1px solid var(--glass-border); background: linear-gradient(180deg, rgba(255,255,255,0.006), rgba(255,255,255,0.004)); }
+    .status{ color:var(--text); font-weight:600; font-size:14px; }
+    .last-updated{ color:var(--muted); font-size:13px; }
+    .powered-by{ margin-left:auto; font-family:'Great Vibes', cursive; color:var(--accent-2); font-size:16px; text-shadow: 0 1px 0 rgba(0,0,0,0.6); }
+    .powered-by a { color:var(--accent-2); text-decoration:none; }
+    .powered-by a:hover { text-decoration:underline; opacity:0.95; }
+
+    .table-container{ overflow-x: hidden; border-radius:12px; padding:6px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.003)); border:1px solid rgba(255,255,255,0.02); }
+
+    table{ width:100%; border-collapse:separate; border-spacing:0; background:transparent; table-layout:auto; }
+
+    thead th{
+      position: sticky; top:0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.014), rgba(255,255,255,0.006));
+      color:var(--muted); font-weight:700; font-size:13px;
+      padding:12px 10px; text-align:left; border-bottom:1px solid rgba(255,255,255,0.03);
+      backdrop-filter: blur(4px); z-index:8;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      writing-mode: horizontal-tb;
+    }
+
+    tbody tr{
+      transition: transform .22s var(--ease), background .22s var(--ease), box-shadow .22s var(--ease), opacity .28s var(--ease);
+      transform-origin:left center;
+      background: linear-gradient(180deg, rgba(255,255,255,0.006), rgba(255,255,255,0.002));
+      border-bottom:1px solid rgba(255,255,255,0.02); color:var(--text); opacity:1;
+      animation: rowPop .28s var(--ease);
+    }
+    @keyframes rowPop { 0% { transform: translateY(6px) scale(.997); opacity:0 } 60% { transform: translateY(-3px) scale(1.002); opacity:1 } 100% { transform: translateY(0) scale(1); opacity:1 } }
+    tbody tr:hover{ transform: translateY(-6px); box-shadow: 0 14px 30px rgba(2,6,23,0.55); background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); color:#fff; }
+
+    td{ padding:10px; font-size:13px; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; writing-mode: horizontal-tb; }
+    td.name { cursor: pointer; } /* 提示可交互 */
+
+    /* 桌面端列宽分配，优化自适应 */
+    th.game, td.game { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:140px; max-width:200px; width:20%; }
+    th.name, td.name { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:160px; max-width:220px; width:22%; }
+    th.ip, td.ip { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:120px; max-width:160px; width:15%; }
+    th.isp, td.isp { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:110px; max-width:150px; width:12%; }
+    th.os, td.os { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:80px; max-width:100px; width:8%; }
+    th.players, td.players { white-space:normal; word-break:normal; min-width:80px; max-width:100px; width:8%; text-align:center; }
+    th.map, td.map { white-space:nowrap; min-width:72px; max-width:100px; width:7%; text-align:center; }
+    th.version, td.version { white-space:normal; overflow-wrap:anywhere; min-width:90px; max-width:120px; width:8%; text-align:center; }
+    th.latency, td.latency { white-space:normal; min-width:70px; max-width:90px; width:6%; text-align:center; }
+    th.country, td.country { width:56px; max-width:60px; text-align:center; white-space:nowrap; min-width:56px; }
+
+    tr.zero-players td{ opacity:0.78; color:var(--muted); filter:grayscale(.2); }
+
+    .ip-link{ color:var(--text); text-decoration:none; font-weight:600; }
+    .ip-link:hover{ text-decoration:underline; color:var(--accent); }
+
+    .badge{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; font-size:12px; font-weight:700; background: rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.02); }
+    .badge.latency{ color:var(--muted); min-width:68px; justify-content:center; }
+    .badge.players{ color:var(--text); background: linear-gradient(90deg, rgba(110,231,183,0.06), rgba(110,231,183,0.02)); border:1px solid rgba(110,231,183,0.08); }
+
+    .footer-links{ margin-top:22px; color:var(--muted); text-align:center; font-size:13px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+    .footer-links a{ color:var(--muted); text-decoration:none; border-bottom:1px dashed rgba(255,255,255,0.02); padding-bottom:2px; }
+    .footer-links a:hover{ color:var(--text); border-bottom-color: rgba(255,255,255,0.04); }
+
+    /* 提示框样式 */
+    .tooltip {
+      position: absolute;
+      background: rgba(14,16,18,0.96);
+      color: var(--text);
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+      padding: 8px 12px;
+      font-size: 13px;
+      z-index: 130;
+      max-width: 300px;
+      white-space: normal;
+      word-break: break-word;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: opacity .2s var(--ease), transform .2s var(--ease);
+    }
+    .tooltip.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ========== 关键移动端修复 ========== */
+    @media (max-width: 680px) {
+      .app { width: calc(100% - 24px); padding:12px; margin:12px auto; max-width:none; }
+      .controls { flex-direction:column; align-items:stretch; gap:10px; }
+      .dropdown, .multiselect { width:100%; }
+
+      /* 隐藏次要列：ip(4), isp(5), os(6), map(8), version(9), latency(10) */
+      table thead th:nth-child(4),
+      table tbody td:nth-child(4),
+      table thead th:nth-child(5),
+      table tbody td:nth-child(5),
+      table thead th:nth-child(6),
+      table tbody td:nth-child(6),
+      table thead th:nth-child(8),
+      table tbody td:nth-child(8),
+      table thead th:nth-child(9),
+      table tbody td:nth-child(9),
+      table thead th:nth-child(10),
+      table tbody td:nth-child(10) {
+        display:none;
+      }
+
+      /* 强制表格使用固定布局 */
+      table { table-layout: fixed; width: 100%; }
+
+      /* 优化列宽分配，减少“游戏名称”宽度，增加“服务器名称”宽度 */
+      table thead th:nth-child(1), table tbody td:nth-child(1) { width: 15%; min-width: 50px; } /* 国家 */
+      table thead th:nth-child(2), table tbody td:nth-child(2) { width: 35%; min-width: 100px; } /* 游戏名称 */
+      table thead th:nth-child(3), table tbody td:nth-child(3) { width: 35%; min-width: 90px; } /* 服务器名称 */
+      table thead th:nth-child(7), table tbody td:nth-child(7) { width: 15%; min-width: 60px; } /* 在线玩家 */
+
+      /* 确保“国家”和“在线玩家”标题完整显示 */
+      th.country, th.players {
+        white-space: nowrap;
+        overflow: visible;
+        text-overflow: unset;
+        font-size: 12px;
+        padding: 8px 4px;
+        text-align: center;
+      }
+
+      /* 确保“游戏名称”和“服务器名称”标题和内容单行截断 */
+      th.game, td.game,
+      th.name, td.name {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        writing-mode: horizontal-tb;
+        font-size: 12px;
+        padding: 8px 4px;
+      }
+
+      /* 确保“国家”列内容完整显示 */
+      td.country {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 4px;
+      }
+      td.country img.flag-icon {
+        width: 24px;
+        height: 16px;
+        margin: 0 auto;
+      }
+      td.country:not(:has(img)) {
+        font-size: 12px;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* 确保“在线玩家”列内容完整显示 */
+      td.players {
+        text-align: center;
+        font-size: 12px;
+        padding: 8px 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* 确保表格单元格显示正常 */
+      thead th:nth-child(1), tbody td:nth-child(1),
+      thead th:nth-child(2), tbody td:nth-child(2),
+      thead th:nth-child(3), tbody td:nth-child(3),
+      thead th:nth-child(7), tbody td:nth-child(7) {
+        display: table-cell;
+        writing-mode: horizontal-tb;
+      }
+
+      .logo { display: none; }
+      .title { font-size: 16px; }
+      .table-container { overflow: visible; }
+
+      /* 移动端提示框调整 */
+      .tooltip {
+        max-width: 90%;
+        font-size: 12px;
+        padding: 6px 10px;
+      }
+    }
+
+    /* 下拉滚动条小样式 */
+    .multiselect-content::-webkit-scrollbar, .dropdown-content::-webkit-scrollbar { height:10px; width:10px; }
+    .multiselect-content::-webkit-scrollbar-thumb, .dropdown-content::-webkit-scrollbar-thumb {
+      border-radius:6px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border:2px solid rgba(0,0,0,0.12);
+    }
+  </style>
 </head>
 <body>
-    <div class="controls">
-        <button class="refresh-btn" onclick="refreshServers()" title="手动请求服务器更新其状态">刷新列表</button>
-        <div class="multiselect" id="regionFilter">
-            <button class="multiselect-btn" onclick="toggleRegionMultiselect()">选择地区</button>
-            <div class="multiselect-content" id="regionFilterOptions"></div>
+  <div class="app">
+    <header class="header" role="banner">
+      <div class="logo" aria-hidden="true">
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="5" fill="rgba(255,255,255,0.02)"/><path d="M7 12h10M7 8h10M7 16h6" stroke="rgba(110,231,183,0.9)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="title-wrap">
+        <h1 class="title">服务器列表</h1>
+        <div class="subtitle">实时显示游戏服务器 — 支持筛选、排序与连接</div>
+      </div>
+    </header>
+
+    <div class="controls" role="region" aria-label="Controls">
+      <button class="btn refresh-btn" onclick="refreshServers()" title="手动请求服务器更新其状态">刷新列表</button>
+
+      <div class="multiselect" id="regionFilter">
+        <button class="multiselect-btn" onclick="toggleRegionMultiselect()">选择地区</button>
+        <div class="multiselect-content" id="regionFilterOptions" aria-hidden="true"></div>
+      </div>
+
+      <div class="multiselect" id="gameFilter">
+        <button class="multiselect-btn" onclick="toggleGameMultiselect()">选择游戏</button>
+        <div class="multiselect-content" id="gameFilterOptions" aria-hidden="true"></div>
+      </div>
+
+      <div class="dropdown" id="sortDropdown">
+        <button class="dropdown-btn" onclick="toggleDropdown()">按人数排序</button>
+        <div class="dropdown-content" id="sortOptions" role="menu" aria-hidden="true">
+          <div onclick="selectSort('players')" role="menuitem">按人数排序</div>
+          <div onclick="selectSort('name')" role="menuitem">按名称排序</div>
+          <div onclick="selectSort('latency')" role="menuitem">按延迟排序</div>
         </div>
-        <div class="multiselect" id="gameFilter">
-            <button class="multiselect-btn" onclick="toggleGameMultiselect()">选择游戏</button>
-            <div class="multiselect-content" id="gameFilterOptions"></div>
-        </div>
-        <div class="dropdown" id="sortDropdown">
-            <button class="dropdown-btn" onclick="toggleDropdown()">按人数排序</button>
-            <div class="dropdown-content" id="sortOptions">
-                <div onclick="selectSort('players')">按人数排序</div>
-                <div onclick="selectSort('name')">按名称排序</div>
-                <div onclick="selectSort('latency')">按延迟排序</div>
-            </div>
-        </div>
+      </div>
     </div>
 
-    <div class="status-container">
-        <div class="status" id="status">正在初始化...</div>
-        <div class="last-updated hidden">最后更新于 <span id="updateTime">0</span> 秒之前</div>
-        <div class="powered-by"><a href="https://github.com/zetsr" target="_blank">Powered by zetsr</a></div>
+    <div class="status-container" role="status" aria-live="polite">
+      <div class="status" id="status">正在初始化...</div>
+      <div class="last-updated hidden">最后更新于 <span id="updateTime">0</span> 秒之前</div>
+      <div class="powered-by"><a href="https://github.com/zetsr" target="_blank" rel="noopener noreferrer">Powered by zetsr</a></div>
     </div>
 
-    <div class="table-container">
-        <table id="serverTable">
-            <thead>
-                <tr>
-                    <th class="country">国家</th>
-                    <th class="game">游戏名称</th>
-                    <th class="name">服务器名称</th>
-                    <th class="ip">服务器IP</th>
-                    <th class="isp">服务商</th>
-                    <th class="os">操作系统</th>
-                    <th class="players">在线玩家</th>
-                    <th class="map">地图</th>
-                    <th class="version">版本</th>
-                    <th class="latency">延迟 (ms)</th>
-                </tr>
-            </thead>
-            <tbody id="serverList"></tbody>
-        </table>
+    <div class="table-container" aria-label="Server Table">
+      <table id="serverTable" role="table" aria-describedby="status">
+        <thead>
+          <tr>
+            <th class="country">国家</th>
+            <th class="game">游戏名称</th>
+            <th class="name">服务器名称</th>
+            <th class="ip">服务器IP</th>
+            <th class="isp">服务商</th>
+            <th class="os">操作系统</th>
+            <th class="players">在线玩家</th>
+            <th class="map">地图</th>
+            <th class="version">版本</th>
+            <th class="latency">延迟 (ms)</th>
+          </tr>
+        </thead>
+        <tbody id="serverList"></tbody>
+      </table>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <script>
-        const tbody = document.getElementById('serverList');
-        const statusDiv = document.getElementById('status');
-        const gameFilter = document.getElementById('gameFilter');
-        const gameFilterBtn = gameFilter.querySelector('.multiselect-btn');
-        const gameFilterOptions = document.getElementById('gameFilterOptions');
-        const regionFilter = document.getElementById('regionFilter');
-        const regionFilterBtn = regionFilter.querySelector('.multiselect-btn');
-        const regionFilterOptions = document.getElementById('regionFilterOptions');
-        const sortDropdown = document.getElementById('sortDropdown');
-        const sortBtn = sortDropdown.querySelector('.dropdown-btn');
-        const updateTimeSpan = document.getElementById('updateTime');
-        const lastUpdatedDiv = document.querySelector('.last-updated');
-
-        let serverData = new Map();
-        let uniqueGames = new Set();
-        let uniqueRegions = new Set();
-        let currentSort = 'players';
-        let urlParams = parseURLParams();
-        let loadingInterval = null;
-        let lastUpdateTime = null;
-        let updateTimerInterval = null;
-
-        let ws = null;
-        let reconnectDelay = 5000;
-        const maxReconnectDelay = 60000;
-        let reconnectTimeoutId = null;
-        let reconnectCountdownIntervalId = null;
-
-        function parseURLParams() {
-            const params = new URLSearchParams(window.location.search);
-            const games = params.get('games') ? params.get('games').split(',').filter(g => g) : [];
-            const regions = params.get('regions') ? params.get('regions').split(',').filter(r => r) : [];
-            const sort = params.get('sort') || 'players';
-            return { games, regions, sort };
-        }
-
-        function updateURL() {
-            const selectedGames = getSelectedGames();
-            const selectedRegions = getSelectedRegions();
-            const params = new URLSearchParams();
-            if (selectedGames.length > 0) params.set('games', selectedGames.join(','));
-            if (selectedRegions.length > 0) params.set('regions', selectedRegions.join(','));
-            params.set('sort', currentSort);
-            window.history.replaceState({}, document.title, `${window.location.pathname}?${params.toString()}`);
-            urlParams = parseURLParams();
-        }
-
-        function startLoadingAnimation(message = '已连接，等待服务器数据') {
-            let dots = 1;
-            clearInterval(loadingInterval);
-            clearInterval(reconnectCountdownIntervalId);
-            reconnectCountdownIntervalId = null;
-            statusDiv.textContent = message + '.';
-            loadingInterval = setInterval(() => {
-                dots = (dots % 3) + 1;
-                statusDiv.textContent = `${message}${'.'.repeat(dots)}`;
-            }, 500);
-        }
-
-        function stopLoadingAnimation(message) {
-            clearInterval(loadingInterval);
-            loadingInterval = null;
-            if (!reconnectCountdownIntervalId) {
-                statusDiv.textContent = message;
-            }
-        }
-
-        function loadCachedData() {
-            const cachedDataStr = sessionStorage.getItem('serverData');
-            if (cachedDataStr) {
-                try {
-                    const cachedData = JSON.parse(cachedDataStr);
-                    if (Array.isArray(cachedData)) {
-                        cachedData.forEach(server => {
-                            const key = `${server.ip}:${server.port}`;
-                            serverData.set(key, server);
-                        });
-                        updateFiltersFromData();
-                        applyUrlParamsToFilters();
-                        filterAndRenderTable();
-                        updateStatus();
-                    } else {
-                        sessionStorage.removeItem('serverData');
-                        updateFiltersFromData();
-                        applyUrlParamsToFilters();
-                    }
-                } catch (e) {
-                    console.error("Failed to parse cached data:", e);
-                    sessionStorage.removeItem('serverData');
-                    updateFiltersFromData();
-                    applyUrlParamsToFilters();
-                }
-            } else {
-                updateFiltersFromData();
-                applyUrlParamsToFilters();
-            }
-        }
-
-        function addOrUpdateServer(server) {
-            if (!server || typeof server.ip !== 'string' || typeof server.port !== 'number') {
-                console.warn("Received invalid server data:", server);
-                return false;
-            }
-            const gameDesc = server.game_description || '未知';
-            if (gameDesc === '未知') return false;
-            const key = `${server.ip}:${server.port}`;
-            serverData.set(key, server);
-
-            const regionDesc = server.country || 'unknown';
-            let filtersChanged = false;
-            if (!uniqueGames.has(gameDesc)) {
-                uniqueGames.add(gameDesc);
-                filtersChanged = true;
-            }
-            if (!uniqueRegions.has(regionDesc)) {
-                uniqueRegions.add(regionDesc);
-                filtersChanged = true;
-            }
-            if (filtersChanged) {
-                updateFilterOptionsUI();
-            }
-            return true;
-        }
-
-        function updateStatus() {
-            const serverCount = serverData.size;
-            const gameCount = uniqueGames.size;
-            const regionCount = uniqueRegions.size;
-            if (!reconnectCountdownIntervalId) {
-                stopLoadingAnimation(`已加载 ${serverCount} 个服务器，${gameCount} 个游戏，${regionCount} 个地区。`);
-            }
-        }
-
-        function connectWebSocket() {
-            if (ws && (ws.readyState === WebSocket.CONNECTING ||
-                       ws.readyState === WebSocket.OPEN)) {
-                return;
-            }
-            clearTimeout(reconnectTimeoutId);
-            reconnectTimeoutId = null;
-            clearInterval(reconnectCountdownIntervalId);
-            reconnectCountdownIntervalId = null;
-
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
-            statusDiv.textContent = '正在连接服务器...';
-
-            ws = new WebSocket(wsUrl);
-
-            ws.onopen = () => {
-                reconnectDelay = 5000;
-                clearInterval(reconnectCountdownIntervalId);
-                reconnectCountdownIntervalId = null;
-                startLoadingAnimation();
-            };
-
-            ws.onmessage = (event) => {
-                try {
-                    const server = JSON.parse(event.data);
-                    const dataAdded = addOrUpdateServer(server);
-                    if (dataAdded) {
-                        clearTimeout(window.renderTimeout);
-                        window.renderTimeout = setTimeout(() => {
-                            filterAndRenderTable();
-                            updateStatus();
-                            updateLastUpdateTime();
-                            sessionStorage.setItem('serverData',
-                                JSON.stringify(Array.from(serverData.values()))
-                            );
-                        }, 50);
-                    }
-                } catch (e) {
-                    console.error("Error processing WebSocket message:", e, "Data:", event.data);
-                }
-            };
-
-            ws.onerror = (error) => {
-                console.error("WebSocket error:", error);
-            };
-
-            ws.onclose = (event) => {
-                ws = null;
-                if (event.code === 1000 || event.code === 1001) {
-                    stopLoadingAnimation('WebSocket 连接已关闭。');
-                    clearInterval(reconnectCountdownIntervalId);
-                    reconnectCountdownIntervalId = null;
-                    return;
-                }
-                clearInterval(loadingInterval);
-                clearInterval(reconnectCountdownIntervalId);
-
-                const reconnectAttemptTime = Date.now() + reconnectDelay;
-                const updateCountdown = () => {
-                    const now = Date.now();
-                    const secondsRemaining = Math.ceil((reconnectAttemptTime - now) / 1000);
-                    if (secondsRemaining > 0) {
-                        statusDiv.textContent =
-                            `连接已断开，${secondsRemaining}秒后尝试重新连接...`;
-                    } else {
-                        statusDiv.textContent = '正在尝试重新连接...';
-                        clearInterval(reconnectCountdownIntervalId);
-                        reconnectCountdownIntervalId = null;
-                    }
-                };
-                updateCountdown();
-                reconnectCountdownIntervalId = setInterval(updateCountdown, 1000);
-
-                reconnectTimeoutId = setTimeout(connectWebSocket, reconnectDelay);
-                reconnectDelay = Math.min(reconnectDelay * 2, maxReconnectDelay);
-            };
-        }
-
-        function updateFiltersFromData() {
-            uniqueGames.clear();
-            uniqueRegions.clear();
-            serverData.forEach(server => {
-                uniqueGames.add(server.game_description || '未知');
-                uniqueRegions.add(server.country || 'unknown');
-            });
-            updateFilterOptionsUI();
-        }
-
-        function updateFilterOptionsUI() {
-            const sortedGames = Array.from(uniqueGames).sort();
-            const sortedRegions = Array.from(uniqueRegions).sort();
-            initializeFilterOptions(gameFilterOptions, sortedGames, getSelectedGames());
-            initializeFilterOptions(regionFilterOptions, sortedRegions, getSelectedRegions(), true);
-            updateGameFilterButtonText();
-            updateRegionFilterButtonText();
-        }
-
-        function applyUrlParamsToFilters() {
-            applyCheckboxSelection(gameFilterOptions, urlParams.games);
-            applyCheckboxSelection(regionFilterOptions, urlParams.regions);
-            updateGameFilterButtonText();
-            updateRegionFilterButtonText();
-            currentSort = ['players', 'name', 'latency'].includes(urlParams.sort)
-                          ? urlParams.sort : 'players';
-            sortBtn.textContent = {'players': '按人数排序',
-                                   'name': '按名称排序',
-                                   'latency': '按延迟排序'}[currentSort];
-        }
-
-        function applyCheckboxSelection(optionsContainer, selectedValues) {
-            const checkboxes = optionsContainer.querySelectorAll('input[type="checkbox"]');
-            checkboxes.forEach(cb => {
-                cb.checked = selectedValues.includes(cb.value);
-            });
-        }
-
-        function initializeFilterOptions(optionsContainer, items, selectedItems, isRegion = false) {
-            optionsContainer.innerHTML = '';
-            items.forEach(item => {
-                const label = document.createElement('label');
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.value = item;
-                checkbox.checked = selectedItems.includes(item);
-                checkbox.addEventListener('change', () => {
-                    filterAndRenderTable();
-                    if (isRegion) updateRegionFilterButtonText();
-                    else updateGameFilterButtonText();
-                    updateURL();
-                });
-                label.appendChild(checkbox);
-                if (isRegion && item !== 'unknown') {
-                    const flagImg = document.createElement('img');
-                    flagImg.src = `https://flagcdn.com/w40/${item.toLowerCase()}.png`;
-                    flagImg.alt = item;
-                    flagImg.className = 'flag-icon';
-                    flagImg.onerror = (e) => { e.target.style.display = 'none'; };
-                    label.appendChild(flagImg);
-                    label.appendChild(document.createTextNode(` ${item}`));
-                } else {
-                    label.appendChild(document.createTextNode(item || '未知'));
-                }
-                optionsContainer.appendChild(label);
-            });
-        }
-
-        function getSelectedGames() {
-            return Array.from(
-                gameFilterOptions.querySelectorAll('input[type="checkbox"]:checked')
-            ).map(cb => cb.value);
-        }
-
-        function getSelectedRegions() {
-            return Array.from(
-                regionFilterOptions.querySelectorAll('input[type="checkbox"]:checked')
-            ).map(cb => cb.value);
-        }
-
-        function updateGameFilterButtonText() {
-            const selectedGames = getSelectedGames();
-            const count = selectedGames.length;
-            if (count === 0) {
-                gameFilterBtn.textContent = '选择游戏';
-                gameFilterBtn.title = '';
-            } else if (count === uniqueGames.size) {
-                gameFilterBtn.textContent = '所有游戏';
-                gameFilterBtn.title = '所有游戏';
-            } else {
-                const joined = selectedGames.join(', ');
-                gameFilterBtn.textContent =
-                    joined.substring(0, 15) + (joined.length > 15 ? '...' : '');
-                gameFilterBtn.title = joined;
-            }
-        }
-
-        function updateRegionFilterButtonText() {
-            const selectedRegions = getSelectedRegions();
-            const count = selectedRegions.length;
-            if (count === 0) {
-                regionFilterBtn.textContent = '选择地区';
-                regionFilterBtn.title = '';
-            } else if (count === uniqueRegions.size) {
-                regionFilterBtn.textContent = '所有地区';
-                regionFilterBtn.title = '所有地区';
-            } else {
-                const joined = selectedRegions.join(', ');
-                regionFilterBtn.textContent =
-                    joined.substring(0, 15) + (joined.length > 15 ? '...' : '');
-                regionFilterBtn.title = joined;
-            }
-        }
-
-        function toggleGameMultiselect() {
-            gameFilter.classList.toggle('open');
-            regionFilter.classList.remove('open');
-            sortDropdown.classList.remove('open');
-        }
-
-        function toggleRegionMultiselect() {
-            regionFilter.classList.toggle('open');
-            gameFilter.classList.remove('open');
-            sortDropdown.classList.remove('open');
-        }
-
-        function toggleDropdown() {
-            sortDropdown.classList.toggle('open');
-            gameFilter.classList.remove('open');
-            regionFilter.classList.remove('open');
-        }
-
-        function selectSort(method) {
-            currentSort = ['players', 'name', 'latency'].includes(method) ? method : 'players';
-            sortBtn.textContent = {'players': '按人数排序',
-                                   'name': '按名称排序',
-                                   'latency': '按延迟排序'}[currentSort];
-            sortDropdown.classList.remove('open');
-            filterAndRenderTable();
-            updateURL();
-        }
-
-        function filterAndRenderTable() {
-            const selectedGames = getSelectedGames();
-            const selectedRegions = getSelectedRegions();
-            let serversToRender = Array.from(serverData.values()).filter(server =>
-                (selectedGames.length === 0 ||
-                 selectedGames.includes(server.game_description || '未知')) &&
-                (selectedRegions.length === 0 ||
-                 selectedRegions.includes(server.country || 'unknown'))
-            );
-            sortServers(serversToRender);
-            renderTable(serversToRender);
-        }
-
-        function sortServers(servers) {
-            servers.sort((a, b) => {
-                if (currentSort === 'players') {
-                    const diff = (b.current_players ?? -1) - (a.current_players ?? -1);
-                    if (diff) return diff;
-                    return (a.name || '').localeCompare(b.name || '');
-                } else if (currentSort === 'name') {
-                    return (a.name || '').localeCompare(b.name || '');
-                } else {
-                    const latA = a.latency ?? Infinity;
-                    const latB = b.latency ?? Infinity;
-                    const diff = latA - latB;
-                    if (diff) return diff;
-                    return (b.current_players ?? -1) - (a.current_players ?? -1);
-                }
-            });
-        }
-
-        function renderTable(servers) {
-            const existingRows = new Map();
-            Array.from(tbody.children).forEach(row => {
-                if (row.dataset.key) existingRows.set(row.dataset.key, row);
-            });
-            const updatedKeys = new Set();
-
-            servers.forEach(server => {
-                const key = `${server.ip}:${server.port}`;
-                updatedKeys.add(key);
-                const countryCode = (server.country || 'unknown').toLowerCase();
-                const ipPort = `${server.ip}:${server.port}`;
-                const isZeroPlayers = server.current_players === 0;
-                let row = existingRows.get(key);
-
-                if (row) {
-                    updateCellContent(row.cells[1], server.game_description || '未知');
-                    updateCellContent(row.cells[2], server.name || '未知');
-                    const ipLink = row.cells[3].querySelector('.ip-link');
-                    if (ipLink.textContent !== ipPort) {
-                        ipLink.textContent = ipPort;
-                        ipLink.href = `steam://connect/${ipPort}`;
-                    }
-                    updateCellContent(row.cells[4], server.isp || '未知');
-                    updateCellContent(row.cells[5], server.os || '未知');
-                    updateCellContent(row.cells[6],
-                                      `${server.current_players ?? '?'}/${server.max_players ?? '?'}`);
-                    updateCellContent(row.cells[7], server.map || '未知');
-                    updateCellContent(row.cells[8], server.version || '未知');
-                    updateCellContent(row.cells[9], server.latency ?? '未知');
-                } else {
-                    row = tbody.insertRow();
-                    row.dataset.key = key;
-                    row.classList.toggle('zero-players', isZeroPlayers);
-
-                    const cellCountry = row.insertCell();
-                    cellCountry.className = 'country';
-                    if (countryCode !== 'unknown') {
-                        const flagImg = document.createElement('img');
-                        flagImg.src = `https://flagcdn.com/w40/${countryCode}.png`;
-                        flagImg.alt = server.country || '';
-                        flagImg.className = 'flag-icon';
-                        flagImg.onerror = e => {
-                            e.target.style.display = 'none';
-                            cellCountry.textContent = countryCode.toUpperCase();
-                        };
-                        cellCountry.appendChild(flagImg);
-                    } else {
-                        cellCountry.textContent = '?';
-                    }
-                    createCell(row, 'game', server.game_description || '未知');
-                    createCell(row, 'name', server.name || '未知');
-                    const cellIp = createCell(row, 'ip');
-                    const link = document.createElement('a');
-                    link.href = `steam://connect/${ipPort}`;
-                    link.className = 'ip-link';
-                    link.textContent = ipPort;
-                    cellIp.appendChild(link);
-                    createCell(row, 'isp', server.isp || '未知');
-                    createCell(row, 'os', server.os || '未知');
-                    createCell(row, 'players',
-                               `${server.current_players ?? '?'}/${server.max_players ?? '?'}`);
-                    createCell(row, 'map', server.map || '未知');
-                    createCell(row, 'version', server.version || '未知');
-                    createCell(row, 'latency', server.latency ?? '未知');
-                }
-
-                row.classList.toggle('zero-players', isZeroPlayers);
-                tbody.appendChild(row);
-            });
-
-            // 只删除 DOM 行，不再删除 serverData 中的数据
-            existingRows.forEach((row, key) => {
-                if (!updatedKeys.has(key)) {
-                    tbody.removeChild(row);
-                }
-            });
-        }
-
-        function updateCellContent(cell, newContent) {
-            const str = String(newContent);
-            if (cell.textContent !== str) {
-                cell.textContent = str;
-            }
-        }
-
-        function createCell(row, className, text = '') {
-            const cell = row.insertCell();
-            cell.className = className;
-            cell.textContent = text;
-            return cell;
-        }
-
-        function updateLastUpdateTime() {
-            lastUpdateTime = Date.now();
-            lastUpdatedDiv.classList.remove('hidden');
-            updateTimeSpan.textContent = '0';
-        }
-
-        function startUpdateTimer() {
-            clearInterval(updateTimerInterval);
-            updateTimerInterval = setInterval(() => {
-                if (lastUpdateTime) {
-                    const sec = Math.floor((Date.now() - lastUpdateTime) / 1000);
-                    updateTimeSpan.textContent = sec;
-                }
-            }, 1000);
-        }
-
-        async function refreshServers() {
-            const btn = document.querySelector('.refresh-btn');
-            btn.disabled = true;
-            const orig = statusDiv.textContent;
-            if (!reconnectCountdownIntervalId) startLoadingAnimation('正在请求刷新...');
-
-            try {
-                await axios.get('/api/servers');
-                setTimeout(() => {
-                    btn.disabled = false;
-                    if (!reconnectCountdownIntervalId &&
-                        statusDiv.textContent.startsWith('正在请求刷新')) {
-                        statusDiv.textContent = orig;
-                    }
-                }, 3000);
-            } catch (e) {
-                console.error("Error requesting server refresh:", e);
-                if (!reconnectCountdownIntervalId) stopLoadingAnimation('刷新请求失败');
-                btn.disabled = false;
-            }
-        }
-
-        window.onload = () => {
-            urlParams = parseURLParams();
-            loadCachedData();
-            startUpdateTimer();
-            connectWebSocket();
-        };
-
-        document.addEventListener('click', (e) => {
-            if (!gameFilter.contains(e.target)) gameFilter.classList.remove('open');
-            if (!regionFilter.contains(e.target)) regionFilter.classList.remove('open');
-            if (!sortDropdown.contains(e.target)) sortDropdown.classList.remove('open');
-        });
-    </script>
 
     <div class="footer-links">
-        <div>IP Data by <a href="https://ipinfo.io" target="_blank">ipinfo.io</a></div>
-        <div><a href="https://developer.valvesoftware.com/wiki/Master_Server_Query_Protocol" target="_blank">Valve Master Server</a></div>
-        <div><a href="https://developer.valvesoftware.com/wiki/Server_queries" target="_blank">A2S Server Queries</a></div>
+      <div>IP Data by <a href="https://ipinfo.io" target="_blank" rel="noopener noreferrer">ipinfo.io</a></div>
+      <div><a href="https://developer.valvesoftware.com/wiki/Master_Server_Query_Protocol" target="_blank" rel="noopener noreferrer">Valve Master Server</a></div>
+      <div><a href="https://developer.valvesoftware.com/wiki/Server_queries" target="_blank" rel="noopener noreferrer">A2S Server Queries</a></div>
     </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script>
+    const tbody = document.getElementById('serverList');
+    const statusDiv = document.getElementById('status');
+    const gameFilter = document.getElementById('gameFilter');
+    const gameFilterBtn = gameFilter.querySelector('.multiselect-btn');
+    const gameFilterOptions = document.getElementById('gameFilterOptions');
+    const regionFilter = document.getElementById('regionFilter');
+    const regionFilterBtn = regionFilter.querySelector('.multiselect-btn');
+    const regionFilterOptions = document.getElementById('regionFilterOptions');
+    const sortDropdown = document.getElementById('sortDropdown');
+    const sortBtn = sortDropdown.querySelector('.dropdown-btn');
+    const updateTimeSpan = document.getElementById('updateTime');
+    const lastUpdatedDiv = document.querySelector('.last-updated');
+
+    let serverData = new Map();
+    let uniqueGames = new Set();
+    let uniqueRegions = new Set();
+    let currentSort = 'players';
+    let urlParams = parseURLParams();
+    let initialSelectedGames = urlParams.games;
+    let initialSelectedRegions = urlParams.regions;
+    let loadingInterval = null;
+    let lastUpdateTime = null;
+    let updateTimerInterval = null;
+    let currentTooltip = null;
+
+    let ws = null;
+    let reconnectDelay = 5000;
+    const maxReconnectDelay = 60000;
+    let reconnectTimeoutId = null;
+    let reconnectCountdownIntervalId = null;
+
+    function parseURLParams() {
+      const params = new URLSearchParams(window.location.search);
+      const games = params.get('games')
+        ? params.get('games').split(',').map(decodeURIComponent).filter(g => g && /^[a-zA-Z0-9\s\-_.,&]+$/.test(g))
+        : [];
+      const regions = params.get('regions')
+        ? params.get('regions').split(',').map(decodeURIComponent).filter(r => r && /^[A-Z]{2}$/.test(r))
+        : [];
+      const sort = params.get('sort') || 'players';
+      return { games, regions, sort };
+    }
+
+    function updateURL() {
+      const selectedGames = getSelectedGames();
+      const selectedRegions = getSelectedRegions();
+      const params = new URLSearchParams();
+      if (selectedGames.length > 0) params.set('games', selectedGames.map(encodeURIComponent).join(','));
+      if (selectedRegions.length > 0) params.set('regions', selectedRegions.join(','));
+      params.set('sort', currentSort);
+      window.history.replaceState({}, document.title, `${window.location.pathname}?${params.toString()}`);
+      urlParams = parseURLParams();
+    }
+
+    function startLoadingAnimation(message = '已连接，等待服务器数据') {
+      let dots = 1;
+      clearInterval(loadingInterval);
+      clearInterval(reconnectCountdownIntervalId);
+      reconnectCountdownIntervalId = null;
+      statusDiv.textContent = message + '.';
+      loadingInterval = setInterval(() => {
+        dots = (dots % 3) + 1;
+        statusDiv.textContent = `${message}${'.'.repeat(dots)}`;
+      }, 500);
+    }
+
+    function stopLoadingAnimation(message) {
+      clearInterval(loadingInterval);
+      loadingInterval = null;
+      if (!reconnectCountdownIntervalId) {
+        statusDiv.textContent = message;
+      }
+    }
+
+    function loadCachedData() {
+      const cachedDataStr = sessionStorage.getItem('serverData');
+      if (cachedDataStr) {
+        try {
+          const cachedData = JSON.parse(cachedDataStr);
+          if (Array.isArray(cachedData)) {
+            cachedData.forEach(server => {
+              const key = `${server.ip}:${server.port}`;
+              serverData.set(key, server);
+            });
+            updateFiltersFromData();
+            applyUrlParamsToFilters();
+            filterAndRenderTable();
+            updateStatus();
+          } else {
+            sessionStorage.removeItem('serverData');
+          }
+        } catch (e) {
+          console.error("Failed to parse cached data:", e);
+          sessionStorage.removeItem('serverData');
+        }
+      }
+      applyUrlParamsToFilters();
+      filterAndRenderTable();
+    }
+
+    function addOrUpdateServer(server) {
+      if (!server || typeof server.ip !== 'string' || typeof server.port !== 'number') {
+        console.warn("Received invalid server data:", server);
+        return false;
+      }
+      const gameDesc = server.game_description || '未知';
+      if (gameDesc === '未知') return false;
+      const key = `${server.ip}:${server.port}`;
+      serverData.set(key, server);
+
+      const regionDesc = server.country || 'unknown';
+      let filtersChanged = false;
+      if (!uniqueGames.has(gameDesc)) {
+        uniqueGames.add(gameDesc);
+        filtersChanged = true;
+      }
+      if (!uniqueRegions.has(regionDesc)) {
+        uniqueRegions.add(regionDesc);
+        filtersChanged = true;
+      }
+      if (filtersChanged) {
+        updateFilterOptionsUI();
+        applyUrlParamsToFilters();
+      }
+      return true;
+    }
+
+    function updateStatus() {
+      const serverCount = serverData.size;
+      const gameCount = uniqueGames.size;
+      const regionCount = uniqueRegions.size;
+      if (!reconnectCountdownIntervalId) {
+        stopLoadingAnimation(`已加载 ${serverCount} 个服务器，${gameCount} 个游戏，${regionCount} 个地区。`);
+      }
+    }
+
+    function connectWebSocket() {
+      if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+        return;
+      }
+      clearTimeout(reconnectTimeoutId);
+      reconnectTimeoutId = null;
+      clearInterval(reconnectCountdownIntervalId);
+      reconnectCountdownIntervalId = null;
+
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+      statusDiv.textContent = '正在连接服务器...';
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        reconnectDelay = 5000;
+        clearInterval(reconnectCountdownIntervalId);
+        reconnectCountdownIntervalId = null;
+        startLoadingAnimation();
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const server = JSON.parse(event.data);
+          const dataAdded = addOrUpdateServer(server);
+          if (dataAdded) {
+            clearTimeout(window.renderTimeout);
+            window.renderTimeout = setTimeout(() => {
+              filterAndRenderTable();
+              updateStatus();
+              updateLastUpdateTime();
+              sessionStorage.setItem('serverData', JSON.stringify(Array.from(serverData.values())));
+            }, 50);
+          }
+        } catch (e) {
+          console.error("Error processing WebSocket message:", e, "Data:", event.data);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+      };
+
+      ws.onclose = (event) => {
+        ws = null;
+        if (event.code === 1000 || event.code === 1001) {
+          stopLoadingAnimation('WebSocket 连接已关闭。');
+          clearInterval(reconnectCountdownIntervalId);
+          reconnectCountdownIntervalId = null;
+          return;
+        }
+        clearInterval(loadingInterval);
+        clearInterval(reconnectCountdownIntervalId);
+
+        const reconnectAttemptTime = Date.now() + reconnectDelay;
+        const updateCountdown = () => {
+          const now = Date.now();
+          const secondsRemaining = Math.ceil((reconnectAttemptTime - now) / 1000);
+          if (secondsRemaining > 0) {
+            statusDiv.textContent = `连接已断开，${secondsRemaining}秒后尝试重新连接...`;
+          } else {
+            statusDiv.textContent = '正在尝试重新连接...';
+            clearInterval(reconnectCountdownIntervalId);
+            reconnectCountdownIntervalId = null;
+          }
+        };
+        updateCountdown();
+        reconnectCountdownIntervalId = setInterval(updateCountdown, 1000);
+
+        reconnectTimeoutId = setTimeout(connectWebSocket, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, maxReconnectDelay);
+      };
+    }
+
+    function updateFiltersFromData() {
+      uniqueGames.clear();
+      uniqueRegions.clear();
+      serverData.forEach(server => {
+        uniqueGames.add(server.game_description || '未知');
+        uniqueRegions.add(server.country || 'unknown');
+      });
+      updateFilterOptionsUI();
+    }
+
+    function updateFilterOptionsUI() {
+      const sortedGames = Array.from(uniqueGames).sort();
+      const sortedRegions = Array.from(uniqueRegions).sort();
+      initializeFilterOptions(gameFilterOptions, sortedGames, getSelectedGames());
+      initializeFilterOptions(regionFilterOptions, sortedRegions, getSelectedRegions(), true);
+      updateGameFilterButtonText();
+      updateRegionFilterButtonText();
+    }
+
+    function applyUrlParamsToFilters() {
+      let selectedGames = initialSelectedGames;
+      let selectedRegions = initialSelectedRegions;
+
+      if (serverData.size > 0) {
+        selectedGames = selectedGames.filter(g => uniqueGames.has(g));
+        selectedRegions = selectedRegions.filter(r => uniqueRegions.has(r));
+      }
+
+      applyCheckboxSelection(gameFilterOptions, selectedGames);
+      applyCheckboxSelection(regionFilterOptions, selectedRegions);
+      updateGameFilterButtonText();
+      updateRegionFilterButtonText();
+      currentSort = ['players', 'name', 'latency'].includes(urlParams.sort) ? urlParams.sort : 'players';
+      sortBtn.textContent = {'players': '按人数排序', 'name': '按名称排序', 'latency': '按延迟排序'}[currentSort];
+    }
+
+    function applyCheckboxSelection(optionsContainer, selectedValues) {
+      const checkboxes = optionsContainer.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(cb => { cb.checked = selectedValues.includes(cb.value); });
+    }
+
+    function initializeFilterOptions(optionsContainer, items, selectedItems, isRegion = false) {
+      optionsContainer.innerHTML = '';
+      items.forEach(item => {
+        const label = document.createElement('label');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = item;
+        checkbox.checked = selectedItems.includes(item);
+        checkbox.addEventListener('change', () => {
+          filterAndRenderTable();
+          if (isRegion) updateRegionFilterButtonText();
+          else updateGameFilterButtonText();
+          updateURL();
+        });
+        label.appendChild(checkbox);
+        if (isRegion && item !== 'unknown') {
+          const flagImg = document.createElement('img');
+          flagImg.src = `https://flagcdn.com/w40/${item.toLowerCase()}.png`;
+          flagImg.alt = item;
+          flagImg.className = 'flag-icon';
+          flagImg.onerror = (e) => { e.target.style.display = 'none'; };
+          label.appendChild(flagImg);
+          label.appendChild(document.createTextNode(` ${item}`));
+        } else {
+          label.appendChild(document.createTextNode(item || '未知'));
+        }
+        optionsContainer.appendChild(label);
+      });
+    }
+
+    function getSelectedGames() {
+      return Array.from(gameFilterOptions.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+    }
+
+    function getSelectedRegions() {
+      return Array.from(regionFilterOptions.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+    }
+
+    function updateGameFilterButtonText() {
+      const selectedGames = getSelectedGames();
+      const count = selectedGames.length;
+      if (count === 0) { gameFilterBtn.textContent = '选择游戏'; gameFilterBtn.title = ''; }
+      else if (count === uniqueGames.size && serverData.size > 0) { gameFilterBtn.textContent = '所有游戏'; gameFilterBtn.title = '所有游戏'; }
+      else { const joined = selectedGames.join(', '); gameFilterBtn.textContent = joined.substring(0, 15) + (joined.length > 15 ? '...' : ''); gameFilterBtn.title = joined; }
+    }
+
+    function updateRegionFilterButtonText() {
+      const selectedRegions = getSelectedRegions();
+      const count = selectedRegions.length;
+      if (count === 0) { regionFilterBtn.textContent = '选择地区'; regionFilterBtn.title = ''; }
+      else if (count === uniqueRegions.size && serverData.size > 0) { regionFilterBtn.textContent = '所有地区'; regionFilterBtn.title = '所有地区'; }
+      else { const joined = selectedRegions.join(', '); regionFilterBtn.textContent = joined.substring(0, 15) + (joined.length > 15 ? '...' : ''); regionFilterBtn.title = joined; }
+    }
+
+    function toggleGameMultiselect() { gameFilter.classList.toggle('open'); regionFilter.classList.remove('open'); sortDropdown.classList.remove('open'); }
+    function toggleRegionMultiselect() { regionFilter.classList.toggle('open'); gameFilter.classList.remove('open'); sortDropdown.classList.remove('open'); }
+    function toggleDropdown() { sortDropdown.classList.toggle('open'); gameFilter.classList.remove('open'); regionFilter.classList.remove('open'); }
+
+    function selectSort(method) {
+      currentSort = ['players', 'name', 'latency'].includes(method) ? method : 'players';
+      sortBtn.textContent = {'players': '按人数排序', 'name': '按名称排序', 'latency': '按延迟排序'}[currentSort];
+      sortDropdown.classList.remove('open');
+      filterAndRenderTable();
+      updateURL();
+    }
+
+    function showTooltip(cell, name, event) {
+      if (currentTooltip) {
+        currentTooltip.remove();
+        currentTooltip = null;
+      }
+
+      const tooltip = document.createElement('div');
+      tooltip.className = 'tooltip';
+      tooltip.textContent = name || '未知';
+      document.body.appendChild(tooltip);
+
+      const rect = cell.getBoundingClientRect();
+      const isMobile = window.matchMedia('(max-width: 680px)').matches;
+      let x, y;
+
+      if (isMobile && event.type === 'touchstart') {
+        x = event.touches[0].clientX;
+        y = event.touches[0].clientY + 10; // 稍微偏移避免遮挡手指
+      } else {
+        x = event.clientX + 10;
+        y = event.clientY + 10;
+      }
+
+      tooltip.style.left = `${x}px`;
+      tooltip.style.top = `${y}px`;
+
+      // 确保提示框不超出视口
+      const tooltipRect = tooltip.getBoundingClientRect();
+      if (tooltipRect.right > window.innerWidth) {
+        tooltip.style.left = `${window.innerWidth - tooltipRect.width - 10}px`;
+      }
+      if (tooltipRect.bottom > window.innerHeight) {
+        tooltip.style.top = `${window.innerHeight - tooltipRect.height - 10}px`;
+      }
+
+      setTimeout(() => tooltip.classList.add('visible'), 10);
+      currentTooltip = tooltip;
+    }
+
+    function hideTooltip() {
+      if (currentTooltip) {
+        currentTooltip.remove();
+        currentTooltip = null;
+      }
+    }
+
+    function filterAndRenderTable() {
+      const selectedGames = getSelectedGames();
+      const selectedRegions = getSelectedRegions();
+      let serversToRender = Array.from(serverData.values()).filter(server =>
+        (selectedGames.length === 0 || selectedGames.includes(server.game_description || '未知')) &&
+        (selectedRegions.length === 0 || selectedRegions.includes(server.country || 'unknown'))
+      );
+      sortServers(serversToRender);
+      renderTable(serversToRender);
+    }
+
+    function sortServers(servers) {
+      servers.sort((a, b) => {
+        if (currentSort === 'players') {
+          const diff = (b.current_players ?? -1) - (a.current_players ?? -1);
+          if (diff) return diff;
+          return (a.name || '').localeCompare(b.name || '');
+        } else if (currentSort === 'name') {
+          return (a.name || '').localeCompare(b.name || '');
+        } else {
+          const latA = a.latency ?? Infinity;
+          const latB = b.latency ?? Infinity;
+          const diff = latA - latB;
+          if (diff) return diff;
+          return (b.current_players ?? -1) - (a.current_players ?? -1);
+        }
+      });
+    }
+
+    function renderTable(servers) {
+      const existingRows = new Map();
+      Array.from(tbody.children).forEach(row => { if (row.dataset.key) existingRows.set(row.dataset.key, row); });
+      const updatedKeys = new Set();
+
+      servers.forEach(server => {
+        const key = `${server.ip}:${server.port}`;
+        updatedKeys.add(key);
+        const countryCode = (server.country || 'unknown').toLowerCase();
+        const ipPort = `${server.ip}:${server.port}`;
+        const isZeroPlayers = server.current_players === 0;
+        let row = existingRows.get(key);
+
+        if (row) {
+          updateCellContent(row.cells[1], server.game_description || '未知');
+          updateCellContent(row.cells[2], server.name || '未知');
+          const ipLink = row.cells[3].querySelector('.ip-link');
+          if (ipLink && ipLink.textContent !== ipPort) {
+            ipLink.textContent = ipPort;
+            ipLink.href = `steam://connect/${ipPort}`;
+          }
+          updateCellContent(row.cells[4], server.isp || '未知');
+          updateCellContent(row.cells[5], server.os || '未知');
+          updateCellContent(row.cells[6], `${server.current_players ?? '?'}/${server.max_players ?? '?'}`);
+          updateCellContent(row.cells[7], server.map || '未知');
+          updateCellContent(row.cells[8], server.version || '未知');
+          updateCellContent(row.cells[9], server.latency ?? '未知');
+        } else {
+          row = tbody.insertRow();
+          row.dataset.key = key;
+          row.classList.toggle('zero-players', isZeroPlayers);
+
+          const cellCountry = row.insertCell();
+          cellCountry.className = 'country';
+          if (countryCode !== 'unknown') {
+            const flagImg = document.createElement('img');
+            flagImg.src = `https://flagcdn.com/w40/${countryCode}.png`;
+            flagImg.alt = server.country || '';
+            flagImg.className = 'flag-icon';
+            flagImg.onerror = e => { e.target.style.display = 'none'; cellCountry.textContent = countryCode.toUpperCase(); };
+            cellCountry.appendChild(flagImg);
+          } else {
+            cellCountry.textContent = '?';
+          }
+
+          createCell(row, 'game', server.game_description || '未知');
+          const cellName = createCell(row, 'name', server.name || '未知');
+          cellName.addEventListener('mouseenter', (e) => {
+            if (!window.matchMedia('(max-width: 680px)').matches) {
+              showTooltip(cellName, server.name, e);
+            }
+          });
+          cellName.addEventListener('mouseleave', () => {
+            if (!window.matchMedia('(max-width: 680px)').matches) {
+              hideTooltip();
+            }
+          });
+          cellName.addEventListener('click', (e) => {
+            if (!window.matchMedia('(max-width: 680px)').matches) {
+              showTooltip(cellName, server.name, e);
+            }
+          });
+          cellName.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // 防止触发 click 事件
+            showTooltip(cellName, server.name, e);
+          });
+
+          const cellIp = createCell(row, 'ip');
+          const link = document.createElement('a');
+          link.href = `steam://connect/${ipPort}`;
+          link.className = 'ip-link';
+          link.textContent = ipPort;
+          cellIp.appendChild(link);
+
+          createCell(row, 'isp', server.isp || '未知');
+          createCell(row, 'os', server.os || '未知');
+          createCell(row, 'players', `${server.current_players ?? '?'}/${server.max_players ?? '?'}`);
+          createCell(row, 'map', server.map || '未知');
+          createCell(row, 'version', server.version || '未知');
+          createCell(row, 'latency', server.latency ?? '未知');
+        }
+
+        row.classList.toggle('zero-players', isZeroPlayers);
+        tbody.appendChild(row);
+      });
+
+      existingRows.forEach((row, key) => {
+        if (!updatedKeys.has(key)) {
+          tbody.removeChild(row);
+        }
+      });
+    }
+
+    function updateCellContent(cell, newContent) {
+      const str = String(newContent);
+      if (cell.textContent !== str) {
+        cell.textContent = str;
+      }
+    }
+
+    function createCell(row, className, text = '') {
+      const cell = row.insertCell();
+      cell.className = className;
+      cell.textContent = text;
+      return cell;
+    }
+
+    function updateLastUpdateTime() {
+      lastUpdateTime = Date.now();
+      lastUpdatedDiv.classList.remove('hidden');
+      updateTimeSpan.textContent = '0';
+    }
+
+    function startUpdateTimer() {
+      clearInterval(updateTimerInterval);
+      updateTimerInterval = setInterval(() => {
+        if (lastUpdateTime) {
+          const sec = Math.floor((Date.now() - lastUpdateTime) / 1000);
+          updateTimeSpan.textContent = sec;
+        }
+      }, 1000);
+    }
+
+    async function refreshServers() {
+      const btn = document.querySelector('.refresh-btn');
+      btn.disabled = true;
+      const orig = statusDiv.textContent;
+      if (!reconnectCountdownIntervalId) startLoadingAnimation('正在请求刷新...');
+
+      try {
+        await axios.get('/api/servers');
+        setTimeout(() => {
+          btn.disabled = false;
+          if (!reconnectCountdownIntervalId && statusDiv.textContent.startsWith('正在请求刷新')) {
+            statusDiv.textContent = orig;
+          }
+        }, 3000);
+      } catch (e) {
+        console.error("Error requesting server refresh:", e);
+        if (!reconnectCountdownIntervalId) stopLoadingAnimation('刷新请求失败');
+        btn.disabled = false;
+      }
+    }
+
+    window.onload = () => {
+      urlParams = parseURLParams();
+      loadCachedData();
+      startUpdateTimer();
+      connectWebSocket();
+
+      // 全局点击/触碰事件关闭提示框
+      document.addEventListener('click', (e) => {
+        if (currentTooltip && !e.target.classList.contains('name')) {
+          hideTooltip();
+        }
+      });
+      document.addEventListener('touchstart', (e) => {
+        if (currentTooltip && !e.target.classList.contains('name')) {
+          hideTooltip();
+        }
+      });
+    };
+
+    document.addEventListener('click', (e) => {
+      if (!gameFilter.contains(e.target)) gameFilter.classList.remove('open');
+      if (!regionFilter.contains(e.target)) regionFilter.classList.remove('open');
+      if (!sortDropdown.contains(e.target)) sortDropdown.classList.remove('open');
+    });
+  </script>
 </body>
 </html>
