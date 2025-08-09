@@ -1,5 +1,7 @@
 # Steam-Server-Web-Browser
 
+<img width="1896" height="879" alt="image" src="https://github.com/user-attachments/assets/36ab514f-fa75-40db-984f-a57a91cf24c1" />
+
 ## 使用方法
 
 - 配置运行环境（适用于全新部署）
