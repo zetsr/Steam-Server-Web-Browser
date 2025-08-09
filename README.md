@@ -2,6 +2,11 @@
 
 ## 使用方法
 
+- 配置运行环境（适用于全新部署）
+```bash
+npm install dgram express node-fetch source-server-query steam-server-query ws
+```
+
 - 编辑 `API_TOKEN.json`（填入你的 [ipinfo.io](https://ipinfo.io) Token）
 ```json
 {
