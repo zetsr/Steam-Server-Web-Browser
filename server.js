@@ -297,8 +297,8 @@ async function updateServerInfo() {
 Promise.all([initializeGeoCacheFile(), initializeServerListFile()]).then(() => {
     // 每 60 秒更新一次服务器列表
     setInterval(updateServerIPs, 60 * 1000);
-    // 每 3 秒更新并推送一次所有服务器信息
-    setInterval(updateServerInfo, 3 * 1000);
+    // 每 10 秒更新并推送一次所有服务器信息
+    setInterval(updateServerInfo, 10 * 1000);
     // 启动时立即执行一次
     updateServerIPs();
     updateServerInfo();
