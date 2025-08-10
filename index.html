@@ -200,10 +200,10 @@
     td.latency { transition: color .3s var(--ease); }
     td.latency.updated { color: var(--accent); }
 
-    th.game, td.game { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:140px; max-width:200px; width:20%; }
-    th.name, td.name { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:160px; max-width:220px; width:22%; }
-    th.ip, td.ip { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:120px; max-width:160px; width:15%; }
-    th.isp, td.isp { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:110px; max-width:150px; width:12%; }
+    th.game, td.game { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:140px; max-width:200px; width:12%; }
+    th.name, td.name { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:160px; max-width:220px; width:30%; }
+    th.ip, td.ip { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:120px; max-width:160px; width:19%; }
+    th.isp, td.isp { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:110px; max-width:150px; width:8%; }
     th.os, td.os { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:80px; max-width:100px; width:8%; }
     th.players, td.players { white-space:normal; word-break:normal; min-width:80px; max-width:100px; width:8%; text-align:center; }
     th.map, td.map { white-space:nowrap; min-width:72px; max-width:100px; width:7%; text-align:center; }
@@ -534,8 +534,8 @@
         console.warn("Received invalid server data:", server);
         return false;
       }
-      const gameDesc = server.game_description || '未知';
-      if (gameDesc === '未知') return false;
+      const gameDesc = server.game_description || '-';
+      if (gameDesc === '-') return false;
       const key = `${server.ip}:${server.port}`;
       serverData.set(key, server);
 
@@ -648,7 +648,7 @@
       uniqueGames.clear();
       uniqueRegions.clear();
       serverData.forEach(server => {
-        uniqueGames.add(server.game_description || '未知');
+        uniqueGames.add(server.game_description || '-');
         uniqueRegions.add(server.country || 'unknown');
       });
       updateFilterOptionsUI();
@@ -709,7 +709,7 @@
           label.appendChild(flagImg);
           label.appendChild(document.createTextNode(` ${item}`));
         } else {
-          label.appendChild(document.createTextNode(item || '未知'));
+          label.appendChild(document.createTextNode(item || '-'));
         }
         optionsContainer.appendChild(label);
       });
@@ -759,7 +759,7 @@
 
       const tooltip = document.createElement('div');
       tooltip.className = 'tooltip';
-      tooltip.textContent = name || '未知';
+      tooltip.textContent = name || '-';
       document.body.appendChild(tooltip);
 
       const rect = cell.getBoundingClientRect();
@@ -818,7 +818,7 @@
       const selectedGames = getSelectedGames();
       const selectedRegions = getSelectedRegions();
       let serversToRender = Array.from(serverData.values()).filter(server =>
-        (selectedGames.length === 0 || selectedGames.includes(server.game_description || '未知')) &&
+        (selectedGames.length === 0 || selectedGames.includes(server.game_description || '-')) &&
         (selectedRegions.length === 0 || selectedRegions.includes(server.country || 'unknown'))
       );
       sortServers(serversToRender);
@@ -864,19 +864,19 @@
         let row = existingRows.get(key);
 
         if (row) {
-          updateCellContent(row.cells[1], server.game_description || '未知');
-          updateCellContent(row.cells[2], server.name || '未知');
+          updateCellContent(row.cells[1], server.game_description || '-');
+          updateCellContent(row.cells[2], server.name || '-');
           const ipLink = row.cells[3].querySelector('.ip-link');
           if (ipLink && ipLink.textContent !== ipPort) {
             ipLink.textContent = ipPort;
             ipLink.href = `steam://connect/${ipPort}`;
           }
-          updateCellContent(row.cells[4], server.isp || '未知');
-          updateCellContent(row.cells[5], server.os || '未知');
+          updateCellContent(row.cells[4], server.isp || '-');
+          updateCellContent(row.cells[5], server.os || '-');
           updateCellContent(row.cells[6], `${server.current_players ?? '?'}/${server.max_players ?? '?'}`);
-          updateCellContent(row.cells[7], server.map || '未知');
-          updateCellContent(row.cells[8], server.version || '未知');
-          queueLatencyUpdate(row.cells[9], server.latency ?? '未知', key);
+          updateCellContent(row.cells[7], server.map || '-');
+          updateCellContent(row.cells[8], server.version || '-');
+          queueLatencyUpdate(row.cells[9], server.latency ?? '-', key);
           row.classList.toggle('zero-players', isZeroPlayers);
           if (tbody.children[index] !== row) {
             tbody.appendChild(row);
@@ -901,8 +901,8 @@
             cellCountry.textContent = '?';
           }
 
-          createCell(row, 'game', server.game_description || '未知');
-          const cellName = createCell(row, 'name', server.name || '未知');
+          createCell(row, 'game', server.game_description || '-');
+          const cellName = createCell(row, 'name', server.name || '-');
           cellName.addEventListener('mouseenter', (e) => {
             if (!window.matchMedia('(max-width: 680px)').matches) {
               showTooltip(cellName, server.name, e);
@@ -930,12 +930,12 @@
           link.textContent = ipPort;
           cellIp.appendChild(link);
 
-          createCell(row, 'isp', server.isp || '未知');
-          createCell(row, 'os', server.os || '未知');
+          createCell(row, 'isp', server.isp || '-');
+          createCell(row, 'os', server.os || '-');
           createCell(row, 'players', `${server.current_players ?? '?'}/${server.max_players ?? '?'}`);
-          createCell(row, 'map', server.map || '未知');
-          createCell(row, 'version', server.version || '未知');
-          createCell(row, 'latency', server.latency ?? '未知');
+          createCell(row, 'map', server.map || '-');
+          createCell(row, 'version', server.version || '-');
+          createCell(row, 'latency', server.latency ?? '-');
         }
       });
 
@@ -970,7 +970,7 @@
       if (currentLatency !== newStr) {
         const currentVal = parseFloat(currentLatency) || Infinity;
         const newVal = parseFloat(newLatency) || Infinity;
-        if (Math.abs(currentVal - newVal) > 5 || currentLatency === '未知' || newStr === '未知') {
+        if (Math.abs(currentVal - newVal) > 5 || currentLatency === '-' || newStr === '-') {
           latencyUpdateQueue.set(key, { cell, newLatency: newStr });
         }
       }
