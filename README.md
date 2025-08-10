@@ -1,6 +1,6 @@
 # Steam-Server-Web-Browser
 
-<img width="1888" height="867" alt="image" src="https://github.com/user-attachments/assets/1afa991f-2cc7-403b-80b7-e497c8c81428" />
+<img width="1894" height="900" alt="image" src="https://github.com/user-attachments/assets/48d3b649-8ef5-4283-b200-83e37ed208a8" />
 
 ## 使用方法
 #### 从 [releases](https://github.com/zetsr/Steam-Server-Web-Browser/releases) 下载最新的版本并解压
