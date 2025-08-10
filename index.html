@@ -110,6 +110,7 @@
     }
     .support-link:hover { color: var(--text); text-decoration: underline; }
 
+    /* --- Modal Styles --- */
     .modal {
       position: fixed;
       top: 0;
@@ -122,26 +123,32 @@
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.3s var(--ease);
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .modal.show {
       opacity: 1;
       pointer-events: auto;
     }
     .modal-content {
+      position: relative;
       background: rgba(14,16,18,0.96);
       border-radius: 12px;
       border: 1px solid rgba(255,255,255,0.06);
       box-shadow: 0 18px 60px rgba(0,0,0,0.75);
-      padding: 20px;
-      max-width: 800px;
+      padding: 24px;
+      padding-top: 56px; /* Extra space for close button */
+      max-width: 550px; /* Reduced width */
       width: 90%;
       max-height: 90vh;
       overflow-y: auto;
       text-align: center;
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
+      transform: scale(0.95);
+      transition: transform 0.3s var(--ease);
+    }
+    .modal.show .modal-content {
+      transform: scale(1);
     }
     .modal-content img {
       max-width: 100%;
@@ -157,20 +164,45 @@
     }
     .close-btn {
       position: absolute;
-      top: 10px;
-      right: 10px;
-      background: none;
-      border: none;
+      top: 16px;
+      right: 16px;
+      width: 32px;
+      height: 32px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--glass-border);
+      border-radius: 50%;
       color: var(--muted);
-      font-size: 18px;
+      font-size: 20px;
+      font-weight: bold;
       cursor: pointer;
-      transition: color 0.2s var(--ease);
+      transition: all 0.2s var(--ease);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      padding: 0;
     }
     .close-btn:hover {
       color: var(--text);
+      background: rgba(255, 255, 255, 0.1);
+      transform: scale(1.1) rotate(90deg);
     }
 
-    .table-container{ overflow-x: hidden; border-radius:12px; padding:6px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.003)); border:1px solid rgba(255,255,255,0.02); }
+    .table-container{ 
+      overflow-x: hidden; 
+      overflow-y: hidden; /* 修复：始终隐藏垂直滚动条 */
+      border-radius:12px; 
+      padding:6px; 
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.003)); 
+      border:1px solid rgba(255,255,255,0.02); 
+      transition: overflow-y 0.3s ease; /* 平滑过渡效果 */
+    }
+    
+    /* 添加一个类用于在渲染期间锁定高度 */
+    .table-container.lock-height {
+      height: var(--table-container-height);
+      overflow-y: hidden !important;
+    }
 
     table{ width:100%; border-collapse:separate; border-spacing:0; background:transparent; table-layout:auto; }
 
@@ -184,21 +216,45 @@
       writing-mode: horizontal-tb;
     }
 
+    /* --- Table Row Animation Styles --- */
     tbody tr{
-      transition: transform .22s var(--ease), background .22s var(--ease), box-shadow .22s var(--ease), opacity .2s var(--ease);
-      transform-origin:left center;
       background: linear-gradient(180deg, rgba(255,255,255,0.006), rgba(255,255,255,0.002));
-      border-bottom:1px solid rgba(255,255,255,0.02); color:var(--text); opacity:1;
+      border-bottom:1px solid rgba(255,255,255,0.02); color:var(--text);
+      /* Use a single transition for transform for FLIP to work smoothly */
+      transition: background .22s var(--ease), box-shadow .22s var(--ease), opacity 0.3s var(--ease);
+      will-change: transform, opacity; /* Performance hint for the browser */
     }
-    tbody tr.new-row { animation: rowPop .28s var(--ease); }
-    @keyframes rowPop { 0% { transform: translateY(6px) scale(.997); opacity:0 } 60% { transform: translateY(-3px) scale(1.002); opacity:1 } 100% { transform: translateY(0) scale(1); opacity:1 } }
-    tbody tr:hover{ transform: translateY(-6px); box-shadow: 0 14px 30px rgba(2,6,23,0.55); background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); color:#fff; }
-    tbody tr.removing { opacity: 0; }
+    tbody tr.moving {
+        transition: transform 0.5s var(--ease); /* This class will be added during FLIP animation */
+    }
+    tbody tr:hover{ 
+        /* Avoid transform on hover to not interfere with FLIP */
+        box-shadow: 0 14px 30px rgba(2,6,23,0.55); 
+        background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); 
+        color:#fff; 
+    }
+    tbody tr.new-row { 
+        animation: rowPopIn 0.4s var(--ease) forwards;
+    }
+    @keyframes rowPopIn {
+        0% { transform: translateY(10px) scale(0.98); opacity: 0; }
+        100% { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    tbody tr.removing {
+      opacity: 0;
+      transform: translateX(-20px) scale(0.98);
+      transition: transform 0.3s var(--ease), opacity 0.3s var(--ease);
+    }
+    /* --- End Animation Styles --- */
 
     td{ padding:10px; font-size:13px; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; writing-mode: horizontal-tb; }
     td.name { cursor: pointer; }
     td.latency { transition: color .3s var(--ease); }
-    td.latency.updated { color: var(--accent); }
+    td.latency.updated { animation: color-flash 0.6s var(--ease); }
+    @keyframes color-flash {
+        0%, 100% { color: var(--text); }
+        50% { color: var(--accent); }
+    }
 
     th.game, td.game { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:140px; max-width:200px; width:12%; }
     th.name, td.name { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:160px; max-width:220px; width:30%; }
@@ -439,6 +495,7 @@
     const updateTimeSpan = document.getElementById('updateTime');
     const lastUpdatedDiv = document.querySelector('.last-updated');
     const visitorCountDiv = document.getElementById('visitorCount');
+    const tableContainer = document.querySelector('.table-container');
 
     let serverData = new Map();
     let uniqueGames = new Set();
@@ -451,8 +508,10 @@
     let lastUpdateTime = null;
     let updateTimerInterval = null;
     let currentTooltip = null;
-    let lastRenderedServers = null;
+    let lastRenderedKey = null; // Changed from lastRenderedServers to lastRenderedKey
     let latencyUpdateQueue = new Map();
+    let isRendering = false; // A flag to prevent concurrent rendering
+    let scrollHideTimer = null;
 
     let ws = null;
     let reconnectDelay = 5000;
@@ -515,7 +574,7 @@
             });
             updateFiltersFromData();
             applyUrlParamsToFilters();
-            filterAndRenderTable();
+            debouncedFilterAndRender();
             updateStatus();
           } else {
             sessionStorage.removeItem('serverData');
@@ -526,7 +585,7 @@
         }
       }
       applyUrlParamsToFilters();
-      filterAndRenderTable();
+      debouncedFilterAndRender();
     }
 
     function addOrUpdateServer(server) {
@@ -595,19 +654,22 @@
           } else {
             const dataAdded = addOrUpdateServer(data);
             if (dataAdded) {
-              clearTimeout(window.renderTimeout);
-              window.renderTimeout = setTimeout(() => {
-                filterAndRenderTable();
-                updateStatus();
-                updateLastUpdateTime();
-                sessionStorage.setItem('serverData', JSON.stringify(Array.from(serverData.values())));
-              }, 50);
+              debouncedFilterAndRender();
             }
           }
         } catch (e) {
           console.error("Error processing WebSocket message:", e, "Data:", event.data);
         }
       };
+      
+      const debouncedFullUpdate = debounce(() => {
+        updateStatus();
+        updateLastUpdateTime();
+        sessionStorage.setItem('serverData', JSON.stringify(Array.from(serverData.values())));
+      }, 500);
+      
+      ws.addEventListener('message', debouncedFullUpdate);
+
 
       ws.onerror = (error) => {
         console.error("WebSocket error:", error);
@@ -694,7 +756,8 @@
         checkbox.value = item;
         checkbox.checked = selectedItems.includes(item);
         checkbox.addEventListener('change', () => {
-          filterAndRenderTable();
+          // BUG FIX: When filters change, immediately call the render function
+          debouncedFilterAndRender();
           if (isRegion) updateRegionFilterButtonText();
           else updateGameFilterButtonText();
           updateURL();
@@ -747,7 +810,7 @@
       currentSort = ['players', 'name', 'latency'].includes(method) ? method : 'players';
       sortBtn.textContent = {'players': '按人数排序', 'name': '按名称排序', 'latency': '按延迟排序'}[currentSort];
       sortDropdown.classList.remove('open');
-      filterAndRenderTable();
+      debouncedFilterAndRender();
       updateURL();
     }
 
@@ -814,7 +877,13 @@
       };
     }
 
+    const debouncedFilterAndRender = debounce(() => {
+        filterAndRenderTable();
+    }, 50);
+
     function filterAndRenderTable() {
+      if (isRendering) return; // Prevent re-entry if already rendering
+
       const selectedGames = getSelectedGames();
       const selectedRegions = getSelectedRegions();
       let serversToRender = Array.from(serverData.values()).filter(server =>
@@ -823,13 +892,32 @@
       );
       sortServers(serversToRender);
 
-      const serversKey = JSON.stringify(serversToRender.map(s => `${s.ip}:${s.port}:${s.game_description}:${s.name}:${s.current_players}:${s.max_players}:${s.latency}:${s.country}:${s.isp}:${s.os}:${s.map}:${s.version}`));
-      if (serversKey === lastRenderedServers) {
-        return;
+      // 修复：在渲染前锁定表格容器高度
+      if (tableContainer) {
+        const currentHeight = tableContainer.scrollHeight;
+        tableContainer.style.setProperty('--table-container-height', `${currentHeight}px`);
+        tableContainer.classList.add('lock-height');
       }
-      lastRenderedServers = serversKey;
 
-      requestAnimationFrame(() => renderTable(serversToRender));
+      // BUG FIX: The key now includes the ORDER of servers by mapping their unique keys.
+      // This ensures that a change in sorting (which changes the order) will trigger a re-render.
+      const serversKey = JSON.stringify(serversToRender.map(s => s.ip + ':' + s.port));
+      if (serversKey === lastRenderedKey) {
+        // 修复：如果内容没有变化，也需要移除高度锁定
+        if (tableContainer) {
+          setTimeout(() => {
+            tableContainer.classList.remove('lock-height');
+          }, 10);
+        }
+        return; // Nothing changed, no need to re-render.
+      }
+      lastRenderedKey = serversKey;
+      
+      isRendering = true;
+      requestAnimationFrame(() => {
+        renderTable(serversToRender);
+        isRendering = false;
+      });
     }
 
     function sortServers(servers) {
@@ -850,117 +938,161 @@
       });
     }
 
+    // --- ANIMATION MAGIC: Heavily refactored renderTable with FLIP ---
     function renderTable(servers) {
+      const oldPositions = new Map();
       const existingRows = new Map();
-      Array.from(tbody.children).forEach(row => { if (row.dataset.key) existingRows.set(row.dataset.key, row); });
-      const updatedKeys = new Set();
 
-      servers.forEach((server, index) => {
+      // 1. FIRST: Record the initial position of all existing rows.
+      tbody.querySelectorAll('[data-key]').forEach(row => {
+          oldPositions.set(row.dataset.key, row.getBoundingClientRect());
+          existingRows.set(row.dataset.key, row);
+      });
+      
+      const fragment = document.createDocumentFragment();
+      const updatedKeys = new Set();
+      const newRowsToAnimate = [];
+
+      // Build the new table body in a fragment for performance
+      servers.forEach(server => {
+          const key = `${server.ip}:${server.port}`;
+          updatedKeys.add(key);
+          const ipPort = `${server.ip}:${server.port}`;
+          const isZeroPlayers = server.current_players === 0;
+          let row = existingRows.get(key);
+
+          if (row) {
+              // Update existing row's content
+              updateCellContent(row.cells[1], server.game_description || '-');
+              updateCellContent(row.cells[2], server.name || '-');
+              row.cells[3].querySelector('.ip-link').textContent = ipPort;
+              updateCellContent(row.cells[4], server.isp || '-');
+              updateCellContent(row.cells[5], server.os || '-');
+              updateCellContent(row.cells[6], `${server.current_players ?? '?'}/${server.max_players ?? '?'}`);
+              updateCellContent(row.cells[7], server.map || '-');
+              updateCellContent(row.cells[8], server.version || '-');
+              queueLatencyUpdate(row.cells[9], server.latency ?? '-', key);
+              row.classList.toggle('zero-players', isZeroPlayers);
+          } else {
+              // Create a new row
+              row = createRow(server);
+              newRowsToAnimate.push(row);
+          }
+          fragment.appendChild(row);
+      });
+      
+      // Handle rows that need to be removed
+      existingRows.forEach((row, key) => {
+          if (!updatedKeys.has(key)) {
+              row.classList.add('removing');
+              setTimeout(() => row.remove(), 300);
+          }
+      });
+      
+      // 2. LAST: Apply the changes to the DOM in one go.
+      tbody.innerHTML = '';
+      tbody.appendChild(fragment);
+
+      // Animate new rows
+      newRowsToAnimate.forEach(row => row.classList.add('new-row'));
+
+      // 3. INVERT & PLAY: Animate the rows that moved.
+      const rowsToMove = [];
+      tbody.querySelectorAll('[data-key]').forEach(row => {
+          const oldPos = oldPositions.get(row.dataset.key);
+          if (!oldPos || newRowsToAnimate.includes(row)) return;
+
+          const newPos = row.getBoundingClientRect();
+          const dx = oldPos.left - newPos.left;
+          const dy = oldPos.top - newPos.top;
+
+          if (dx !== 0 || dy !== 0) {
+              row.style.transform = `translate(${dx}px, ${dy}px)`;
+              rowsToMove.push(row);
+          }
+      });
+      
+      // This forces the browser to apply the transform before starting the transition.
+      requestAnimationFrame(() => {
+          rowsToMove.forEach(row => {
+              row.classList.add('moving');
+              row.style.transform = ''; // Animate back to its natural position
+          });
+          // Clean up the animation class after it's finished.
+          rowsToMove.forEach(row => {
+              row.addEventListener('transitionend', () => {
+                  row.classList.remove('moving');
+              }, { once: true });
+          });
+      });
+
+      processLatencyUpdates();
+
+      // 修复：在动画结束后移除高度锁定
+      if (tableContainer) {
+        // 清除之前的定时器
+        if (scrollHideTimer) {
+          clearTimeout(scrollHideTimer);
+        }
+        // 设置定时器在动画结束后移除高度锁定
+        scrollHideTimer = setTimeout(() => {
+          tableContainer.classList.remove('lock-height');
+          scrollHideTimer = null;
+        }, 600); // 匹配动画持续时间
+      }
+    }
+    
+    function createRow(server) {
+        const row = document.createElement('tr');
         const key = `${server.ip}:${server.port}`;
-        updatedKeys.add(key);
+        row.dataset.key = key;
+        row.classList.toggle('zero-players', server.current_players === 0);
+
         const countryCode = (server.country || 'unknown').toLowerCase();
         const ipPort = `${server.ip}:${server.port}`;
-        const isZeroPlayers = server.current_players === 0;
-        let row = existingRows.get(key);
 
-        if (row) {
-          updateCellContent(row.cells[1], server.game_description || '-');
-          updateCellContent(row.cells[2], server.name || '-');
-          const ipLink = row.cells[3].querySelector('.ip-link');
-          if (ipLink && ipLink.textContent !== ipPort) {
-            ipLink.textContent = ipPort;
-            ipLink.href = `steam://connect/${ipPort}`;
-          }
-          updateCellContent(row.cells[4], server.isp || '-');
-          updateCellContent(row.cells[5], server.os || '-');
-          updateCellContent(row.cells[6], `${server.current_players ?? '?'}/${server.max_players ?? '?'}`);
-          updateCellContent(row.cells[7], server.map || '-');
-          updateCellContent(row.cells[8], server.version || '-');
-          queueLatencyUpdate(row.cells[9], server.latency ?? '-', key);
-          row.classList.toggle('zero-players', isZeroPlayers);
-          if (tbody.children[index] !== row) {
-            tbody.appendChild(row);
-          }
-        } else {
-          row = tbody.insertRow();
-          row.dataset.key = key;
-          row.classList.toggle('zero-players', isZeroPlayers);
-          row.classList.add('new-row');
-          setTimeout(() => row.classList.remove('new-row'), 280);
-
-          const cellCountry = row.insertCell();
-          cellCountry.className = 'country';
-          if (countryCode !== 'unknown') {
+        const cellCountry = row.insertCell();
+        cellCountry.className = 'country';
+        if (countryCode !== 'unknown') {
             const flagImg = document.createElement('img');
             flagImg.src = `https://flagcdn.com/w40/${countryCode}.png`;
             flagImg.alt = server.country || '';
             flagImg.className = 'flag-icon';
             flagImg.onerror = e => { e.target.style.display = 'none'; cellCountry.textContent = countryCode.toUpperCase(); };
             cellCountry.appendChild(flagImg);
-          } else {
+        } else {
             cellCountry.textContent = '?';
-          }
-
-          createCell(row, 'game', server.game_description || '-');
-          const cellName = createCell(row, 'name', server.name || '-');
-          cellName.addEventListener('mouseenter', (e) => {
-            if (!window.matchMedia('(max-width: 680px)').matches) {
-              showTooltip(cellName, server.name, e);
-            }
-          });
-          cellName.addEventListener('mouseleave', () => {
-            if (!window.matchMedia('(max-width: 680px)').matches) {
-              hideTooltip();
-            }
-          });
-          cellName.addEventListener('click', (e) => {
-            if (!window.matchMedia('(max-width: 680px)').matches) {
-              showTooltip(cellName, server.name, e);
-            }
-          });
-          cellName.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            showTooltip(cellName, server.name, e);
-          });
-
-          const cellIp = createCell(row, 'ip');
-          const link = document.createElement('a');
-          link.href = `steam://connect/${ipPort}`;
-          link.className = 'ip-link';
-          link.textContent = ipPort;
-          cellIp.appendChild(link);
-
-          createCell(row, 'isp', server.isp || '-');
-          createCell(row, 'os', server.os || '-');
-          createCell(row, 'players', `${server.current_players ?? '?'}/${server.max_players ?? '?'}`);
-          createCell(row, 'map', server.map || '-');
-          createCell(row, 'version', server.version || '-');
-          createCell(row, 'latency', server.latency ?? '-');
         }
-      });
 
-      existingRows.forEach((row, key) => {
-        if (!updatedKeys.has(key)) {
-          row.classList.add('removing');
-          setTimeout(() => {
-            if (tbody.contains(row)) {
-              tbody.removeChild(row);
-            }
-          }, 200);
-        }
-      });
+        createCell(row, 'game', server.game_description || '-');
+        const cellName = createCell(row, 'name', server.name || '-');
+        cellName.addEventListener('mouseenter', e => showTooltip(cellName, server.name, e));
+        cellName.addEventListener('mouseleave', hideTooltip);
+        cellName.addEventListener('click', e => showTooltip(cellName, server.name, e));
+        cellName.addEventListener('touchstart', e => { e.preventDefault(); showTooltip(cellName, server.name, e); });
+        
+        const cellIp = createCell(row, 'ip');
+        const link = document.createElement('a');
+        link.href = `steam://connect/${ipPort}`;
+        link.className = 'ip-link';
+        link.textContent = ipPort;
+        cellIp.appendChild(link);
 
-      processLatencyUpdates();
+        createCell(row, 'isp', server.isp || '-');
+        createCell(row, 'os', server.os || '-');
+        createCell(row, 'players', `${server.current_players ?? '?'}/${server.max_players ?? '?'}`);
+        createCell(row, 'map', server.map || '-');
+        createCell(row, 'version', server.version || '-');
+        createCell(row, 'latency', server.latency ?? '-');
+
+        return row;
     }
+
 
     function updateCellContent(cell, newContent) {
       const str = String(newContent);
       if (cell.textContent !== str) {
-        cell.style.opacity = '0';
-        setTimeout(() => {
-          cell.textContent = str;
-          cell.style.opacity = '1';
-        }, 200);
+        cell.textContent = str;
       }
     }
 
@@ -968,20 +1100,16 @@
       const currentLatency = cell.textContent;
       const newStr = String(newLatency);
       if (currentLatency !== newStr) {
-        const currentVal = parseFloat(currentLatency) || Infinity;
-        const newVal = parseFloat(newLatency) || Infinity;
-        if (Math.abs(currentVal - newVal) > 5 || currentLatency === '-' || newStr === '-') {
           latencyUpdateQueue.set(key, { cell, newLatency: newStr });
-        }
       }
     }
 
     const processLatencyUpdates = debounce(() => {
-      latencyUpdateQueue.forEach(({ cell, newLatency }, key) => {
+      latencyUpdateQueue.forEach(({ cell, newLatency }) => {
         if (cell.textContent !== newLatency) {
-          cell.classList.add('updated');
           cell.textContent = newLatency;
-          setTimeout(() => cell.classList.remove('updated'), 300);
+          cell.classList.add('updated');
+          setTimeout(() => cell.classList.remove('updated'), 600);
         }
       });
       latencyUpdateQueue.clear();
@@ -1038,21 +1166,19 @@
       connectWebSocket();
 
       document.addEventListener('click', (e) => {
-        if (currentTooltip && !e.target.classList.contains('name')) {
+        if (currentTooltip && !e.target.closest('.name')) {
           hideTooltip();
         }
         const modal = document.getElementById('supportModal');
         if (modal.classList.contains('show') && e.target === modal) {
           hideSupportModal();
         }
+        
+        if (!gameFilter.contains(e.target)) gameFilter.classList.remove('open');
+        if (!regionFilter.contains(e.target)) regionFilter.classList.remove('open');
+        if (!sortDropdown.contains(e.target)) sortDropdown.classList.remove('open');
       });
     };
-
-    document.addEventListener('click', (e) => {
-      if (!gameFilter.contains(e.target)) gameFilter.classList.remove('open');
-      if (!regionFilter.contains(e.target)) regionFilter.classList.remove('open');
-      if (!sortDropdown.contains(e.target)) sortDropdown.classList.remove('open');
-    });
   </script>
 </body>
 </html>
