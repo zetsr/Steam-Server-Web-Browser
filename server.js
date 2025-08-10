@@ -1,7 +1,12 @@
-const express = require('express'); 
+'use strict';
+
+const express = require('express');  
 const fetch = require('node-fetch').default;
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
+const https = require('https');
+const http = require('http');
 const WebSocket = require('ws');
 const Query = require('source-server-query');
 const { queryMasterServer, REGIONS } = require('steam-server-query');
@@ -13,6 +18,14 @@ const app = express();
 // 支持形式：--port=3000  或  --PORT=3000  或  --port 3000
 // 支持时间参数单位： "30s" (秒), "30000ms" (毫秒)，对于 UpdateServer* 默认把裸数字当作 秒；
 // 对于 INFO_TIMEOUT 裸数字当作 毫秒。
+// 另外新增/支持参数：
+//   --https_port (HTTPS 端口，兼容旧的 --port)
+//   --http_port (HTTP 端口，用于 HTTP->HTTPS 重定向，默认 80)
+//   --redirect_http (true/false, 是否启用 HTTP->HTTPS 重定向，默认 true)
+//   --pfx_path 或 --pfx (pfx 相对或绝对路径，命令行优先)
+//   --pfx_passphrase (pfx 密码，可选；或用环境变量 PFX_PASSPHRASE)
+//   环境变量 PFX_PATH 可作为后备
+// 默认 pfx 文件名为 ./your_domain.pfx（请在部署时替换为你的证书文件）
 // -----------------------------
 function parseArgs() {
     const argv = process.argv.slice(2);
@@ -26,7 +39,6 @@ function parseArgs() {
             [key, val] = token.split('=');
         } else {
             key = token;
-            // 如果下一个参数存在且不是以 -- 开头，就认为它是值
             const next = argv[i + 1];
             if (next && !next.startsWith('--')) {
                 val = next;
@@ -86,8 +98,13 @@ function parseTimeoutToMs(val, fallbackMs) {
 
 const rawArgs = parseArgs();
 
-// 默认值（保留原始默认，但改为 let 以便用启动项覆盖）
-let port = 80;
+// 默认值
+let httpsPort = 443; // default HTTPS
+let httpPort = 80;   // default HTTP redirect port
+let enableHttpRedirect = true;
+let pfxPath = path.join(__dirname, 'your_domain.pfx'); // <- 默认改为 your_domain.pfx
+let pfxPassphrase = undefined;
+
 let CONCURRENCY = 10;      // 并发上限（根据机器能力调节；测试时可降到 5/10）
 let INFO_TIMEOUT = 2000;  // ms，用于 Query.info 的超时
 let UpdateServerIPsTimeMs = 600 * 1000; // 默认 600 秒 -> ms
@@ -95,13 +112,55 @@ let UpdateServerInfoTimeMs = 30 * 1000; // 默认 30 秒 -> ms
 
 // 从 rawArgs 中读取并校验
 try {
+    // 兼容旧的 --port，把它当作 HTTPS 端口
     if (rawArgs.port !== undefined) {
         const p = toInt(rawArgs.port, null);
         if (p && p > 0 && p < 65536) {
-            port = p;
+            httpsPort = p;
         } else {
-            console.warn(`[WARN] 无效的 port 值 "${rawArgs.port}"，使用默认 port=${port}`);
+            console.warn(`[WARN] 无效的 port 值 "${rawArgs.port}"，使用默认 httpsPort=${httpsPort}`);
         }
+    }
+
+    if (rawArgs.https_port !== undefined) {
+        const p = toInt(rawArgs.https_port, null);
+        if (p && p > 0 && p < 65536) {
+            httpsPort = p;
+        } else {
+            console.warn(`[WARN] 无效的 https_port 值 "${rawArgs.https_port}"，使用默认 httpsPort=${httpsPort}`);
+        }
+    }
+
+    if (rawArgs.http_port !== undefined) {
+        const p = toInt(rawArgs.http_port, null);
+        if (p && p > 0 && p < 65536) {
+            httpPort = p;
+        } else {
+            console.warn(`[WARN] 无效的 http_port 值 "${rawArgs.http_port}"，使用默认 httpPort=${httpPort}`);
+        }
+    }
+
+    if (rawArgs.redirect_http !== undefined) {
+        const v = String(rawArgs.redirect_http).toLowerCase();
+        enableHttpRedirect = (v === 'true' || v === '1' || v === 'yes');
+    }
+
+    // pfx_path 或 pfx（命令行优先）
+    if (rawArgs.pfx_path !== undefined) {
+        pfxPath = path.isAbsolute(rawArgs.pfx_path) ? rawArgs.pfx_path : path.join(process.cwd(), rawArgs.pfx_path);
+    } else if (rawArgs.pfx !== undefined) {
+        pfxPath = path.isAbsolute(rawArgs.pfx) ? rawArgs.pfx : path.join(process.cwd(), rawArgs.pfx);
+    } else if (process.env.PFX_PATH) {
+        pfxPath = path.isAbsolute(process.env.PFX_PATH) ? process.env.PFX_PATH : path.join(process.cwd(), process.env.PFX_PATH);
+    } else {
+        // 保持默认（./your_domain.pfx）
+        pfxPath = path.isAbsolute(pfxPath) ? pfxPath : path.join(process.cwd(), path.relative(process.cwd(), pfxPath));
+    }
+
+    if (rawArgs.pfx_passphrase !== undefined) {
+        pfxPassphrase = String(rawArgs.pfx_passphrase);
+    } else if (process.env.PFX_PASSPHRASE) {
+        pfxPassphrase = process.env.PFX_PASSPHRASE;
     }
 
     // concurrency
@@ -112,8 +171,6 @@ try {
         } else {
             console.warn(`[WARN] 无效的 CONCURRENCY 值 "${rawArgs.concurrency}"，使用默认 CONCURRENCY=${CONCURRENCY}`);
         }
-    } else if (rawArgs['concurrency'] === undefined && rawArgs['CONCURRENCY'] !== undefined) {
-        // should be covered, kept for clarity
     }
 
     // INFO_TIMEOUT
@@ -137,8 +194,6 @@ try {
         } else {
             console.warn(`[WARN] 无效的 UpdateServerIPsTime 值 "${rawArgs.updateserveripstime}"，使用默认 ${UpdateServerIPsTimeMs} ms`);
         }
-    } else if (rawArgs.updateserveripstime !== undefined) {
-        // no-op, kept for symmetry
     }
 
     // UpdateServerInfoTime
@@ -151,11 +206,6 @@ try {
         }
     }
 
-    // Also support uppercase keys (because parse normalized to lowercase, this is redundant but safe)
-    if (rawArgs['concurrency'] === undefined && rawArgs['CONCURRENCY'] !== undefined) {
-        const c = toInt(rawArgs['CONCURRENCY'], null);
-        if (c && c > 0) CONCURRENCY = c;
-    }
 } catch (e) {
     console.warn('[WARN] 解析启动参数时发生异常，使用全部默认配置：', e && e.message ? e.message : e);
 }
@@ -163,7 +213,11 @@ try {
 // 打印最终使用的配置
 function logStartConfig() {
     console.log('------------------ 启动配置 ------------------');
-    console.log(`PORT: ${port}`);
+    console.log(`HTTPS_PORT: ${httpsPort}`);
+    console.log(`HTTP_PORT (redirect): ${httpPort}`);
+    console.log(`HTTP->HTTPS 重定向: ${enableHttpRedirect}`);
+    console.log(`PFX 文件路径: ${pfxPath}`);
+    console.log(`PFX 是否有提供密码: ${pfxPassphrase ? '是' : '否'}`);
     console.log(`CONCURRENCY: ${CONCURRENCY}`);
     console.log(`INFO_TIMEOUT: ${INFO_TIMEOUT} ms`);
     console.log(`UpdateServerIPsTime: ${Math.floor(UpdateServerIPsTimeMs / 1000)} s (${UpdateServerIPsTimeMs} ms)`);
@@ -174,21 +228,15 @@ logStartConfig();
 
 // -----------------------------
 // 下面是你原有的逻辑（尽量保持不变）
+// 我们将在异步初始化里启动 HTTPS/HTTP 并挂载 WebSocket Server
 // -----------------------------
-
-const server = app.listen(port, '0.0.0.0', () => {
-    log(`HTTP 服务器运行在 http://0.0.0.0:${port}`);
-    log(`WebSocket 服务器运行在 ws://0.0.0.0:${port}/ws`);
-});
-const wss = new WebSocket.Server({ server, path: '/ws' });
 
 const GEO_CACHE_FILE = path.join(__dirname, 'geo_cache.json');
 const SERVER_LIST_FILE = path.join(__dirname, 'server_list.json');
 const TOKEN_FILE = path.join(__dirname, 'API_TOKEN.json');
 const APP_ID_FILE = path.join(__dirname, 'app_id.json');
 
-// 可调参数
-// 已通过上面的解析覆盖 CONCURRENCY 和 INFO_TIMEOUT
+// 可调参数（已通过上面的解析覆盖 CONCURRENCY 和 INFO_TIMEOUT）
 
 let clients = new Set();
 let geoCache = {};
@@ -219,28 +267,7 @@ function broadcastVisitorCount() {
     log(`推送在线人数: ${count} 位访客`);
 }
 
-wss.on('connection', (ws) => {
-    clients.add(ws);
-    log('新客户端已连接');
-    broadcastVisitorCount();
-
-    if (serverDataCache.length > 0) {
-        log('向新客户端推送缓存的服务器数据');
-        serverDataCache.forEach(serverData => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(serializeBigInt(serverData));
-            }
-        });
-    } else {
-        log('缓存为空，等待下一次服务器数据更新');
-    }
-
-    ws.on('close', () => {
-        clients.delete(ws);
-        log('客户端已断开');
-        broadcastVisitorCount();
-    });
-});
+let wss = null; // will be created after server startup
 
 async function initializeGeoCacheFile() {
     try {
@@ -524,17 +551,124 @@ async function updateServerInfo() {
     }
 }
 
-Promise.all([initializeGeoCacheFile(), initializeServerListFile()]).then(() => {
+// 启动 HTTPS (并可选启动 HTTP 重定向) 的异步初始化
+async function startServersAndServices() {
+    // 检查 pfx 文件是否存在并读取
+    try {
+        await fs.access(pfxPath);
+    } catch (err) {
+        log(`PFX 文件不存在或无法访问: ${pfxPath} - ${err.message}`);
+        log('请确保 pfx 文件存在于指定路径，或者通过 --pfx_path / --pfx 指定正确路径。程序退出。');
+        process.exit(1);
+    }
+
+    let pfxBuffer;
+    try {
+        pfxBuffer = fsSync.readFileSync(pfxPath);
+        log(`已加载 PFX 文件: ${pfxPath} (${pfxBuffer.length} bytes)`);
+    } catch (err) {
+        log(`读取 PFX 文件失败: ${err.message}`);
+        process.exit(1);
+    }
+
+    const httpsOptions = {
+        pfx: pfxBuffer,
+        // 如果 passphrase 是 undefined 且 pfx 没有密码，Node 会自动处理；如果 pfx 有密码且未提供，会报错
+        passphrase: pfxPassphrase
+    };
+
+    // 创建 HTTPS server
+    const httpsServer = https.createServer(httpsOptions, app);
+
+    // WebSocket 将挂载在 httpsServer 上
+    wss = new WebSocket.Server({ server: httpsServer, path: '/ws' });
+
+    // WebSocket 连接处理（你原来的逻辑）
+    wss.on('connection', (ws, req) => {
+        clients.add(ws);
+        log('新客户端已连接 (wss)');
+        broadcastVisitorCount();
+
+        if (serverDataCache.length > 0) {
+            log('向新客户端推送缓存的服务器数据');
+            serverDataCache.forEach(serverData => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(serializeBigInt(serverData));
+                }
+            });
+        } else {
+            log('缓存为空，等待下一次服务器数据更新');
+        }
+
+        ws.on('close', () => {
+            clients.delete(ws);
+            log('客户端已断开');
+            broadcastVisitorCount();
+        });
+    });
+
+    // 可选：启动 HTTP 服务，用于重定向到 HTTPS
+    let httpServer = null;
+    if (enableHttpRedirect) {
+        httpServer = http.createServer((req, res) => {
+            // 构造跳转到 https 的 Location（保留 host，但替换端口为 httpsPort 如果必要）
+            const hostHeader = req.headers.host || '';
+            let hostOnly = hostHeader;
+            if (hostHeader.includes(':')) {
+                hostOnly = hostHeader.split(':')[0];
+            }
+            let targetHost = hostOnly;
+            if (httpsPort !== 443) {
+                targetHost = `${hostOnly}:${httpsPort}`;
+            }
+            const location = `https://${targetHost}${req.url}`;
+            res.writeHead(301, { Location: location });
+            res.end(`Redirecting to ${location}`);
+        });
+
+        httpServer.on('error', (err) => {
+            log(`HTTP 重定向服务器错误: ${err.message}`);
+        });
+    }
+
+    // 启动监听
+    httpsServer.listen(httpsPort, '0.0.0.0', () => {
+        log(`HTTPS 服务器运行在 https://0.0.0.0:${httpsPort}`);
+        log(`WebSocket 服务器运行在 wss://0.0.0.0:${httpsPort}/ws`);
+    });
+
+    if (enableHttpRedirect && httpServer) {
+        httpServer.listen(httpPort, '0.0.0.0', () => {
+            log(`HTTP 重定向服务器运行在 http://0.0.0.0:${httpPort} (重定向到 HTTPS)`);
+        });
+    }
+
+    // 以下保持原逻辑：初始化文件、定时任务等
+    try {
+        await Promise.all([initializeGeoCacheFile(), initializeServerListFile()]);
+    } catch (err) {
+        log(`初始化文件失败: ${err.message}`);
+        // 继续也许可以运行，但提醒
+    }
+
     // 使用解析后的 UpdateServerIPsTimeMs / UpdateServerInfoTimeMs
     setInterval(updateServerIPs, UpdateServerIPsTimeMs); // 每 UpdateServerIPsTimeMs ms 更新一次
     setInterval(updateServerInfo, UpdateServerInfoTimeMs); // 每 UpdateServerInfoTimeMs ms 更新一次
+    // 立即触发一次
     updateServerIPs();
     updateServerInfo();
-});
+}
 
+// express 路由（保持不变）
 app.get('/api/servers', async (req, res) => {
     log('收到 /api/servers 请求');
     res.json({ message: '服务器列表已通过 WebSocket 推送' });
 });
 
 app.use(express.static(__dirname));
+
+// 启动整个服务
+startServersAndServices().catch(err => {
+    log(`启动失败: ${err && err.message ? err.message : err}`);
+    process.exit(1);
+});
