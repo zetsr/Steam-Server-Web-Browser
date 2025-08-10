@@ -22,12 +22,10 @@ npm install dgram express node-fetch source-server-query steam-server-query ws
     1295900
 ]  
 ```
-
 #### 启动服务
 ```bash
-node server.js --https_port=443 --http_port=80 --redirect_http=true --pfx_path=./your_domain.pfx --pfx_passphrase=your_passphrase --concurrency=8 --INFO_TIMEOUT=2500 --UpdateServerIPsTime=300s --UpdateServerInfoTime=15s
+node server.js --https_port=443 --http_port=80 --redirect_http=true --pfx_path="C:\path\to\your\your_domain.pfx" --pfx_passphrase=your_passphrase --concurrency=8 --INFO_TIMEOUT=2500 --UpdateServerIPsTime=300s --UpdateServerInfoTime=15s
 ```
-
 #### 启动项（可选参数，大小写不敏感）
 
 本程序支持通过命令行参数调整运行配置。  
