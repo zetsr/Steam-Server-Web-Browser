@@ -23,8 +23,25 @@ npm install dgram express node-fetch source-server-query steam-server-query ws
 ]  
 ```
 
-#### 启动服务
-
+#### 启动服务（基本方式）
 ```bash
-node server.js
+node server.js --port=3000 --concurrency=8 --INFO_TIMEOUT=2500 --UpdateServerIPsTime=300s --UpdateServerInfoTime=15s
 ```
+
+---
+
+#### 启动项（可选参数，大小写不敏感）
+
+本程序支持通过命令行参数调整运行配置。  
+格式可用 `--参数名=值` 或 `--参数名 值`，参数名大小写不敏感，`-` 和 `_` 都可用。  
+未传入或传入非法值时，会自动回退到默认值并打印警告。
+
+| 参数名 | 说明 | 默认值 | 支持的单位与格式 | 备注 |
+|--------|------|--------|------------------|------|
+| `--port` | HTTP/WebSocket 服务端口 | `80` | 正整数 | 小于 65536 |
+| `--CONCURRENCY` | 并发查询上限 | `10` | 正整数 | 建议根据机器性能调整 |
+| `--INFO_TIMEOUT` | 查询服务器信息超时 | `2000ms` | 裸数字=毫秒<br>`3000ms`=毫秒<br>`3s`=秒 | 仅影响单次 Query.info / Query.players |
+| `--UpdateServerIPsTime` | 更新服务器 IP 列表间隔 | `600s` | 裸数字=秒<br>`600000ms`=毫秒<br>`600s`=秒 | 过小会频繁请求 Steam Master Server |
+| `--UpdateServerInfoTime` | 更新服务器信息间隔 | `30s` | 裸数字=秒<br>`30000ms`=毫秒<br>`30s`=秒 | 过小会频繁请求各游戏服务器 |
+
+---
