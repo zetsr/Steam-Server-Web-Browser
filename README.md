@@ -28,7 +28,7 @@ npm install dgram express node-fetch source-server-query steam-server-query ws
 C:\Users\Administrator\Desktop\win-acme.v2.2.9.1701.x64.pluggable --target manual --host yourdomain.com --store pemfiles --pemfilespath C:\certs --installation none
 ```
 ```bash
-C:\Program Files\OpenSSL-Win64\bin\openssl.exe pkcs12 -export -out yourdomain.com.pfx -inkey yourdomain.com-key.pem -in yourdomain.com-crt.pem -certfile yourdomain.com-chain.pem
+"C:\Program Files\OpenSSL-Win64\bin\openssl.exe" pkcs12 -export -out yourdomain.com.pfx -inkey yourdomain.com-key.pem -in yourdomain.com-crt.pem -certfile yourdomain.com-chain.pem -passout pass:YourStrongPassword123
 ```
 #### 启动服务
 ```bash
