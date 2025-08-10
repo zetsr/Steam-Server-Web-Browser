@@ -37,11 +37,24 @@
 
     .app{ max-width:1200px; width: calc(100% - 56px); margin:28px auto; padding:20px; border-radius:16px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00)); box-shadow: var(--shadow-strong); position:relative; overflow:visible; border:1px solid rgba(255,255,255,0.02); backdrop-filter: blur(6px) saturate(1.05); }
 
-    .header{ display:flex; align-items:center; gap:16px; margin-bottom:16px; }
+    .header{ display:flex; align-items:center; gap:16px; margin-bottom:16px; position: relative; }
     .logo{ width:64px; height:64px; border-radius:10px; background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)); display:flex; align-items:center; justify-content:center; border:1px solid var(--glass-border); box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 6px 18px rgba(2,6,23,0.6); flex-shrink:0 }
     .title-wrap{ flex:1; min-width:0 }
     .title{ font-size:18px; font-weight:600; color:var(--text); margin:0; }
     .subtitle{ margin-top:4px; color:var(--muted); font-size:13px }
+    .visitor-count{ 
+      position: absolute; 
+      right: 0; 
+      top: 0; 
+      padding: 6px 12px; 
+      background: linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.008)); 
+      border-radius: 8px; 
+      border: 1px solid rgba(255,255,255,0.03); 
+      color: var(--text); 
+      font-size: 13px; 
+      font-weight: 600; 
+      box-shadow: 0 4px 12px rgba(2,6,23,0.4); 
+    }
 
     .controls{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px; border-radius:12px; background: linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.008)); border:1px solid var(--glass-border); box-shadow: inset 0 1px 0 rgba(255,255,255,0.02); margin-bottom:16px; }
 
@@ -84,9 +97,78 @@
     .status-container{ display:flex; align-items:center; gap:12px; margin:6px 0 16px; position:relative; min-height:48px; padding:8px 12px; border-radius:12px; border:1px solid var(--glass-border); background: linear-gradient(180deg, rgba(255,255,255,0.006), rgba(255,255,255,0.004)); }
     .status{ color:var(--text); font-weight:600; font-size:14px; }
     .last-updated{ color:var(--muted); font-size:13px; }
-    .powered-by{ margin-left:auto; font-family:'Great Vibes', cursive; color:var(--accent-2); font-size:16px; text-shadow: 0 1px 0 rgba(0,0,0,0.6); }
+    .powered-by-wrap{ margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; }
+    .powered-by{ font-family:'Great Vibes', cursive; color:var(--accent-2); font-size:16px; text-shadow: 0 1px 0 rgba(0,0,0,0.6); position: relative; top: -4px; }
     .powered-by a { color:var(--accent-2); text-decoration:none; }
     .powered-by a:hover { text-decoration:underline; opacity:0.95; }
+    .support-link { 
+      font-size: 13px; 
+      color: var(--accent); 
+      cursor: pointer; 
+      text-decoration: none; 
+      transition: color 0.2s var(--ease); 
+    }
+    .support-link:hover { color: var(--text); text-decoration: underline; }
+
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(8px);
+      z-index: 150;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s var(--ease);
+    }
+    .modal.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal-content {
+      background: rgba(14,16,18,0.96);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 18px 60px rgba(0,0,0,0.75);
+      padding: 20px;
+      max-width: 800px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+      text-align: center;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .modal-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    .modal-content p {
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+      margin: 0 0 16px;
+    }
+    .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 18px;
+      cursor: pointer;
+      transition: color 0.2s var(--ease);
+    }
+    .close-btn:hover {
+      color: var(--text);
+    }
 
     .table-container{ overflow-x: hidden; border-radius:12px; padding:6px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.003)); border:1px solid rgba(255,255,255,0.02); }
 
@@ -114,11 +196,10 @@
     tbody tr.removing { opacity: 0; }
 
     td{ padding:10px; font-size:13px; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; writing-mode: horizontal-tb; }
-    td.name { cursor: pointer; } /* 提示可交互 */
-    td.latency { transition: color .3s var(--ease); } /* 延迟列使用颜色过渡 */
-    td.latency.updated { color: var(--accent); } /* 更新时高亮 */
+    td.name { cursor: pointer; }
+    td.latency { transition: color .3s var(--ease); }
+    td.latency.updated { color: var(--accent); }
 
-    /* 桌面端列宽分配，优化自适应 */
     th.game, td.game { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:140px; max-width:200px; width:20%; }
     th.name, td.name { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:160px; max-width:220px; width:22%; }
     th.ip, td.ip { white-space:normal; overflow-wrap:anywhere; word-break:break-word; min-width:120px; max-width:160px; width:15%; }
@@ -143,7 +224,6 @@
     .footer-links a{ color:var(--muted); text-decoration:none; border-bottom:1px dashed rgba(255,255,255,0.02); padding-bottom:2px; }
     .footer-links a:hover{ color:var(--text); border-bottom-color: rgba(255,255,255,0.04); }
 
-    /* 提示框样式 */
     .tooltip {
       position: absolute;
       background: rgba(14,16,18,0.96);
@@ -167,13 +247,17 @@
       transform: translateY(0);
     }
 
-    /* ========== 关键移动端修复 ========== */
     @media (max-width: 680px) {
       .app { width: calc(100% - 24px); padding:12px; margin:12px auto; max-width:none; }
       .controls { flex-direction:column; align-items:stretch; gap:10px; }
       .dropdown, .multiselect { width:100%; }
-
-      /* 隐藏次要列：ip(4), isp(5), os(6), map(8), version(9), latency(10) */
+      .visitor-count { 
+        position: static; 
+        margin-left: auto; 
+        font-size: 12px; 
+        padding: 4px 8px; 
+      }
+      .powered-by-wrap { align-items: flex-end; }
       table thead th:nth-child(4),
       table tbody td:nth-child(4),
       table thead th:nth-child(5),
@@ -188,17 +272,11 @@
       table tbody td:nth-child(10) {
         display:none;
       }
-
-      /* 强制表格使用固定布局 */
       table { table-layout: fixed; width: 100%; }
-
-      /* 优化列宽分配，减少“游戏名称”宽度，增加“服务器名称”宽度 */
-      table thead th:nth-child(1), table tbody td:nth-child(1) { width: 15%; min-width: 50px; } /* 国家 */
-      table thead th:nth-child(2), table tbody td:nth-child(2) { width: 35%; min-width: 100px; } /* 游戏名称 */
-      table thead th:nth-child(3), table tbody td:nth-child(3) { width: 35%; min-width: 90px; } /* 服务器名称 */
-      table thead th:nth-child(7), table tbody td:nth-child(7) { width: 15%; min-width: 60px; } /* 在线玩家 */
-
-      /* 确保“国家”和“在线玩家”标题完整显示 */
+      table thead th:nth-child(1), table tbody td:nth-child(1) { width: 15%; min-width: 50px; }
+      table thead th:nth-child(2), table tbody td:nth-child(2) { width: 35%; min-width: 100px; }
+      table thead th:nth-child(3), table tbody td:nth-child(3) { width: 35%; min-width: 90px; }
+      table thead th:nth-child(7), table tbody td:nth-child(7) { width: 15%; min-width: 60px; }
       th.country, th.players {
         white-space: nowrap;
         overflow: visible;
@@ -207,8 +285,6 @@
         padding: 8px 4px;
         text-align: center;
       }
-
-      /* 确保“游戏名称”和“服务器名称”标题和内容单行截断 */
       th.game, td.game,
       th.name, td.name {
         white-space: nowrap;
@@ -218,8 +294,6 @@
         font-size: 12px;
         padding: 8px 4px;
       }
-
-      /* 确保“国家”列内容完整显示 */
       td.country {
         display: flex;
         align-items: center;
@@ -238,8 +312,6 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
-
-      /* 确保“在线玩家”列内容完整显示 */
       td.players {
         text-align: center;
         font-size: 12px;
@@ -248,8 +320,6 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
-
-      /* 确保表格单元格显示正常 */
       thead th:nth-child(1), tbody td:nth-child(1),
       thead th:nth-child(2), tbody td:nth-child(2),
       thead th:nth-child(3), tbody td:nth-child(3),
@@ -257,12 +327,9 @@
         display: table-cell;
         writing-mode: horizontal-tb;
       }
-
       .logo { display: none; }
       .title { font-size: 16px; }
       .table-container { overflow: visible; }
-
-      /* 移动端提示框调整 */
       .tooltip {
         max-width: 90%;
         font-size: 12px;
@@ -270,7 +337,6 @@
       }
     }
 
-    /* 下拉滚动条小样式 */
     .multiselect-content::-webkit-scrollbar, .dropdown-content::-webkit-scrollbar { height:10px; width:10px; }
     .multiselect-content::-webkit-scrollbar-thumb, .dropdown-content::-webkit-scrollbar-thumb {
       border-radius:6px;
@@ -289,6 +355,7 @@
         <h1 class="title">服务器列表</h1>
         <div class="subtitle">实时显示游戏服务器 — 支持筛选、排序与连接</div>
       </div>
+      <div class="visitor-count" id="visitorCount">0位访客</div>
     </header>
 
     <div class="controls" role="region" aria-label="Controls">
@@ -317,7 +384,10 @@
     <div class="status-container" role="status" aria-live="polite">
       <div class="status" id="status">正在初始化...</div>
       <div class="last-updated hidden">最后更新于 <span id="updateTime">0</span> 秒之前</div>
-      <div class="powered-by"><a href="https://github.com/zetsr" target="_blank" rel="noopener noreferrer">Powered by zetsr</a></div>
+      <div class="powered-by-wrap">
+        <div class="powered-by"><a href="https://github.com/zetsr" target="_blank" rel="noopener noreferrer">Powered by zetsr</a></div>
+        <a class="support-link" onclick="showSupportModal()">支持一下♥</a>
+      </div>
     </div>
 
     <div class="table-container" aria-label="Server Table">
@@ -346,6 +416,13 @@
       <div><a href="https://developer.valvesoftware.com/wiki/Server_queries" target="_blank" rel="noopener noreferrer">A2S Server Queries</a></div>
     </div>
   </div>
+  <div class="modal" id="supportModal">
+    <div class="modal-content">
+      <button class="close-btn" onclick="hideSupportModal()">×</button>
+      <img src="pay.jpg" alt="赞助二维码">
+      <p>您的赞助将帮助我们维持服务器的运行和持续改进服务。扫描上方二维码即可赞助我们，感谢您的支持！</p>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script>
@@ -361,6 +438,7 @@
     const sortBtn = sortDropdown.querySelector('.dropdown-btn');
     const updateTimeSpan = document.getElementById('updateTime');
     const lastUpdatedDiv = document.querySelector('.last-updated');
+    const visitorCountDiv = document.getElementById('visitorCount');
 
     let serverData = new Map();
     let uniqueGames = new Set();
@@ -374,7 +452,7 @@
     let updateTimerInterval = null;
     let currentTooltip = null;
     let lastRenderedServers = null;
-    let latencyUpdateQueue = new Map(); // 延迟更新队列
+    let latencyUpdateQueue = new Map();
 
     let ws = null;
     let reconnectDelay = 5000;
@@ -511,16 +589,20 @@
 
       ws.onmessage = (event) => {
         try {
-          const server = JSON.parse(event.data);
-          const dataAdded = addOrUpdateServer(server);
-          if (dataAdded) {
-            clearTimeout(window.renderTimeout);
-            window.renderTimeout = setTimeout(() => {
-              filterAndRenderTable();
-              updateStatus();
-              updateLastUpdateTime();
-              sessionStorage.setItem('serverData', JSON.stringify(Array.from(serverData.values())));
-            }, 50);
+          const data = JSON.parse(event.data);
+          if (data.type === 'visitor_count') {
+            visitorCountDiv.textContent = `${data.count}位访客`;
+          } else {
+            const dataAdded = addOrUpdateServer(data);
+            if (dataAdded) {
+              clearTimeout(window.renderTimeout);
+              window.renderTimeout = setTimeout(() => {
+                filterAndRenderTable();
+                updateStatus();
+                updateLastUpdateTime();
+                sessionStorage.setItem('serverData', JSON.stringify(Array.from(serverData.values())));
+              }, 50);
+            }
           }
         } catch (e) {
           console.error("Error processing WebSocket message:", e, "Data:", event.data);
@@ -714,6 +796,16 @@
       }
     }
 
+    function showSupportModal() {
+      const modal = document.getElementById('supportModal');
+      modal.classList.add('show');
+    }
+
+    function hideSupportModal() {
+      const modal = document.getElementById('supportModal');
+      modal.classList.remove('show');
+    }
+
     function debounce(func, wait) {
       let timeout;
       return function (...args) {
@@ -784,7 +876,6 @@
           updateCellContent(row.cells[6], `${server.current_players ?? '?'}/${server.max_players ?? '?'}`);
           updateCellContent(row.cells[7], server.map || '未知');
           updateCellContent(row.cells[8], server.version || '未知');
-          // 延迟列单独处理
           queueLatencyUpdate(row.cells[9], server.latency ?? '未知', key);
           row.classList.toggle('zero-players', isZeroPlayers);
           if (tbody.children[index] !== row) {
@@ -859,7 +950,6 @@
         }
       });
 
-      // 处理延迟更新队列
       processLatencyUpdates();
     }
 
@@ -951,10 +1041,9 @@
         if (currentTooltip && !e.target.classList.contains('name')) {
           hideTooltip();
         }
-      });
-      document.addEventListener('touchstart', (e) => {
-        if (currentTooltip && !e.target.classList.contains('name')) {
-          hideTooltip();
+        const modal = document.getElementById('supportModal');
+        if (modal.classList.contains('show') && e.target === modal) {
+          hideSupportModal();
         }
       });
     };
