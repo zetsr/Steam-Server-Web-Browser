@@ -23,7 +23,7 @@ npm install dgram express node-fetch source-server-query steam-server-query ws
 ]  
 ```
 
-#### 启动服务（基本方式）
+#### 启动服务
 ```bash
 node server.js --port=3000 --concurrency=8 --INFO_TIMEOUT=2500 --UpdateServerIPsTime=300s --UpdateServerInfoTime=15s
 ```
