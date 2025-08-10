@@ -25,10 +25,8 @@ npm install dgram express node-fetch source-server-query steam-server-query ws
 
 #### 启动服务
 ```bash
-node server.js --port=3000 --concurrency=8 --INFO_TIMEOUT=2500 --UpdateServerIPsTime=300s --UpdateServerInfoTime=15s
+node server.js --https_port=443 --http_port=80 --redirect_http=true --pfx_path=./your_domain.pfx --pfx_passphrase=your_passphrase --concurrency=8 --INFO_TIMEOUT=2500 --UpdateServerIPsTime=300s --UpdateServerInfoTime=15s
 ```
-
----
 
 #### 启动项（可选参数，大小写不敏感）
 
@@ -38,10 +36,13 @@ node server.js --port=3000 --concurrency=8 --INFO_TIMEOUT=2500 --UpdateServerIPs
 
 | 参数名 | 说明 | 默认值 | 支持的单位与格式 | 备注 |
 |--------|------|--------|------------------|------|
-| `--port` | HTTP/WebSocket 服务端口 | `80` | 正整数 | 小于 65536 |
-| `--CONCURRENCY` | 并发查询上限 | `10` | 正整数 | 建议根据机器性能调整 |
+| `--port` | HTTP/WebSocket 服务端口（兼容旧版本，现等同于 `--https_port`） | `443` | 正整数 | 小于 65536，建议使用 `--https_port` 替代 |
+| `--https_port` | HTTPS 服务端口 | `443` | 正整数 | 小于 65536，优先级高于 `--port` |
+| `--http_port` | HTTP 服务端口（用于 HTTP 到 HTTPS 重定向） | `80` | 正整数 | 小于 65536，仅在 `--redirect_http=true` 时生效 |
+| `--redirect_http` | 是否启用 HTTP 到 HTTPS 重定向 | `true` | `true` / `false` / `1` / `0` / `yes` / `no` | 设为 `false` 可禁用 HTTP 重定向服务 |
+| `--pfx_path` 或 `--pfx` | HTTPS 证书文件（PFX 格式）的相对或绝对路径 | `./your_domain.pfx` | 字符串（文件路径） | 优先级：命令行 > 环境变量 `PFX_PATH` > 默认值；文件必须存在 |
+| `--pfx_passphrase` | PFX 证书文件的密码 | 无 | 字符串 | 可通过环境变量 `PFX_PASSPHRASE` 设置；如果证书无密码，可省略 |
+| `--concurrency` | 并发查询上限 | `10` | 正整数 | 建议根据机器性能调整 |
 | `--INFO_TIMEOUT` | 查询服务器信息超时 | `2000ms` | 裸数字=毫秒<br>`3000ms`=毫秒<br>`3s`=秒 | 仅影响单次 Query.info / Query.players |
-| `--UpdateServerIPsTime` | 更新服务器 IP 列表间隔 | `600s` | 裸数字=秒<br>`600000ms`=毫秒<br>`600s`=秒 | 过小会频繁请求 Steam Master Server |
+| `--UpdateServerIPsTime` | 更新服务器 IP 列表间隔 | `600s` | 裸数字=秒<br>`600000ms`=毫秒<br>`600s`=秒 | детали на Steam Master Server |
 | `--UpdateServerInfoTime` | 更新服务器信息间隔 | `30s` | 裸数字=秒<br>`30000ms`=毫秒<br>`30s`=秒 | 过小会频繁请求各游戏服务器 |
-
----
