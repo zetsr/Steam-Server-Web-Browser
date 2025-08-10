@@ -22,6 +22,14 @@ npm install dgram express node-fetch source-server-query steam-server-query ws
     1295900
 ]  
 ```
+#### 配置并生成.pfx证书
+示例
+```base
+C:\Users\Administrator\Desktop\win-acme.v2.2.9.1701.x64.pluggable --target manual --host yourdomain.com --store pemfiles --pemfilespath C:\certs --installation none
+```
+```bash
+C:\Program Files\OpenSSL-Win64\bin\openssl.exe pkcs12 -export -out yourdomain.com.pfx -inkey yourdomain.com-key.pem -in yourdomain.com-crt.pem -certfile yourdomain.com-chain.pem
+```
 #### 启动服务
 ```bash
 node server.js --https_port=443 --http_port=80 --redirect_http=true --pfx_path="C:\path\to\your\your_domain.pfx" --pfx_passphrase=your_passphrase --concurrency=8 --INFO_TIMEOUT=2500 --UpdateServerIPsTime=300s --UpdateServerInfoTime=15s
