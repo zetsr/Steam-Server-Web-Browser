@@ -411,7 +411,7 @@
         <h1 class="title">服务器列表</h1>
         <div class="subtitle">实时显示游戏服务器 — 支持筛选、排序与连接</div>
       </div>
-      <div class="visitor-count" id="visitorCount">0位访客</div>
+      <div class="visitor-count" id="visitorCount">0 位访客</div>
     </header>
 
     <div class="controls" role="region" aria-label="Controls">
@@ -650,7 +650,7 @@
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'visitor_count') {
-            visitorCountDiv.textContent = `${data.count}位访客`;
+            visitorCountDiv.textContent = `${data.count} 位访客`;
           } else {
             const dataAdded = addOrUpdateServer(data);
             if (dataAdded) {
@@ -825,28 +825,41 @@
       tooltip.textContent = name || '-';
       document.body.appendChild(tooltip);
 
+      // 修复: 计算位置时考虑页面滚动偏移
       const rect = cell.getBoundingClientRect();
+      const scrollX = window.scrollX || window.pageXOffset;
+      const scrollY = window.scrollY || window.pageYOffset;
+      
       const isMobile = window.matchMedia('(max-width: 680px)').matches;
       let x, y;
 
       if (isMobile && event.type === 'touchstart') {
-        x = event.touches[0].clientX;
-        y = event.touches[0].clientY + 10;
+        x = event.touches[0].clientX + scrollX;
+        y = event.touches[0].clientY + scrollY + 10;
       } else {
-        x = event.clientX + 10;
-        y = event.clientY + 10;
+        x = event.clientX + scrollX + 10;
+        y = event.clientY + scrollY + 10;
       }
 
       tooltip.style.left = `${x}px`;
       tooltip.style.top = `${y}px`;
 
+      // 调整位置避免超出视口
       const tooltipRect = tooltip.getBoundingClientRect();
-      if (tooltipRect.right > window.innerWidth) {
-        tooltip.style.left = `${window.innerWidth - tooltipRect.width - 10}px`;
+      const viewportRight = scrollX + window.innerWidth;
+      const viewportBottom = scrollY + window.innerHeight;
+      const tooltipRight = x + tooltipRect.width;
+      const tooltipBottom = y + tooltipRect.height;
+
+      if (tooltipRight > viewportRight) {
+        x = viewportRight - tooltipRect.width - 10;
       }
-      if (tooltipRect.bottom > window.innerHeight) {
-        tooltip.style.top = `${window.innerHeight - tooltipRect.height - 10}px`;
+      if (tooltipBottom > viewportBottom) {
+        y = viewportBottom - tooltipRect.height - 10;
       }
+
+      tooltip.style.left = `${x}px`;
+      tooltip.style.top = `${y}px`;
 
       setTimeout(() => tooltip.classList.add('visible'), 10);
       currentTooltip = tooltip;
