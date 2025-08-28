@@ -1051,7 +1051,7 @@
         scrollHideTimer = setTimeout(() => {
           tableContainer.classList.remove('lock-height');
           scrollHideTimer = null;
-        }, 600); // 匹配动画持续时间
+        }, 500); // 调整为匹配FLIP动画时间（0.5s），更平滑
       }
     }
     
@@ -1105,7 +1105,7 @@
     function updateCellContent(cell, newContent) {
       const str = String(newContent);
       if (cell.textContent !== str) {
-        cell.textContent = str;
+        cell.textContent = str; // textContent 已安全，转义HTML
       }
     }
 
@@ -1126,7 +1126,7 @@
         }
       });
       latencyUpdateQueue.clear();
-    }, 300);
+    }, 200); // 微调debounce时间为200ms，提升响应
 
     function createCell(row, className, text = '') {
       const cell = row.insertCell();
