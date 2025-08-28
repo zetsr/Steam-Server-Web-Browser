@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>服务器列表</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Great+Vibes&display=swap" rel="stylesheet">
+  <!-- 引入Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root{
       --bg:#07080a;
@@ -186,6 +188,63 @@
       color: var(--text);
       background: rgba(255, 255, 255, 0.1);
       transform: scale(1.1) rotate(90deg);
+    }
+
+    /* 服务器历史数据模态框样式 */
+    .history-modal .modal-content {
+      max-width: 800px;
+      padding: 24px;
+      padding-top: 56px;
+      text-align: left;
+    }
+    .history-header {
+      margin-bottom: 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding-bottom: 15px;
+    }
+    .history-title {
+      font-size: 20px;
+      margin: 0 0 8px 0;
+      color: var(--accent);
+    }
+    .history-subtitle {
+      color: var(--muted);
+      margin: 0;
+      font-size: 14px;
+    }
+    .history-chart-container {
+      margin-bottom: 20px;
+      position: relative;
+      height: 300px;
+    }
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    .history-table th,
+    .history-table td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .history-table th {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .history-table td {
+      color: var(--text);
+      font-size: 13px;
+    }
+    .history-table tr:last-child td {
+      border-bottom: none;
+    }
+    .no-data {
+      text-align: center;
+      color: var(--muted);
+      padding: 40px 0;
+      font-style: italic;
     }
 
     .table-container{ 
@@ -391,6 +450,16 @@
         font-size: 12px;
         padding: 6px 10px;
       }
+      .history-modal .modal-content {
+        padding: 16px;
+        padding-top: 48px;
+      }
+      .history-title {
+        font-size: 18px;
+      }
+      .history-chart-container {
+        height: 200px;
+      }
     }
 
     .multiselect-content::-webkit-scrollbar, .dropdown-content::-webkit-scrollbar { height:10px; width:10px; }
@@ -480,6 +549,35 @@
     </div>
   </div>
 
+  <!-- 新增：服务器历史数据模态框 -->
+  <div class="modal history-modal" id="historyModal">
+    <div class="modal-content">
+      <button class="close-btn" onclick="hideHistoryModal()">×</button>
+      <div class="history-header">
+        <h2 class="history-title" id="historyServerName">服务器名称</h2>
+        <p class="history-subtitle" id="historyServerInfo">IP:端口</p>
+      </div>
+      <div class="history-chart-container">
+        <canvas id="historyChart"></canvas>
+      </div>
+      <div id="historyTableContainer">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>最大在线人数</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody">
+          </tbody>
+        </table>
+      </div>
+      <div class="no-data" id="historyNoData" style="display: none;">
+        暂无最近30天的历史数据
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script>
     const tbody = document.getElementById('serverList');
@@ -496,6 +594,15 @@
     const lastUpdatedDiv = document.querySelector('.last-updated');
     const visitorCountDiv = document.getElementById('visitorCount');
     const tableContainer = document.querySelector('.table-container');
+
+    // 新增：历史数据相关元素
+    const historyModal = document.getElementById('historyModal');
+    const historyServerName = document.getElementById('historyServerName');
+    const historyServerInfo = document.getElementById('historyServerInfo');
+    const historyChart = document.getElementById('historyChart');
+    const historyTableBody = document.getElementById('historyTableBody');
+    const historyNoData = document.getElementById('historyNoData');
+    const historyTableContainer = document.getElementById('historyTableContainer');
 
     let serverData = new Map();
     let uniqueGames = new Set();
@@ -518,6 +625,9 @@
     const maxReconnectDelay = 60000;
     let reconnectTimeoutId = null;
     let reconnectCountdownIntervalId = null;
+
+    // 新增：Chart.js 实例
+    let historyChartInstance = null;
 
     function parseURLParams() {
       const params = new URLSearchParams(window.location.search);
@@ -882,6 +992,157 @@
       modal.classList.remove('show');
     }
 
+    // 新增：显示服务器历史数据模态框
+    function showHistoryModal(server) {
+      const key = `${server.ip}:${server.port}`;
+      historyServerName.textContent = server.name || '未知服务器';
+      historyServerInfo.textContent = `${server.ip}:${server.port}`;
+      
+      // 显示加载中状态
+      historyTableBody.innerHTML = '<tr><td colspan="2" style="text-align: center;">加载中...</td></tr>';
+      historyNoData.style.display = 'none';
+      historyTableContainer.style.display = 'table';
+      
+      // 销毁之前的图表实例
+      if (historyChartInstance) {
+        historyChartInstance.destroy();
+        historyChartInstance = null;
+      }
+      
+      // 显示模态框
+      historyModal.classList.add('show');
+      
+      // 获取服务器历史数据
+      axios.get(`/api/server-history/${encodeURIComponent(key)}`)
+        .then(response => {
+          const historyData = response.data;
+          renderHistoryData(historyData);
+        })
+        .catch(error => {
+          console.error('获取服务器历史数据失败:', error);
+          historyTableBody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--muted);">获取历史数据失败</td></tr>';
+          historyNoData.style.display = 'block';
+          historyTableContainer.style.display = 'none';
+        });
+    }
+
+    // 新增：隐藏服务器历史数据模态框
+    function hideHistoryModal() {
+      historyModal.classList.remove('show');
+    }
+
+    // 新增：渲染服务器历史数据
+    function renderHistoryData(historyData) {
+      if (!historyData.history || Object.keys(historyData.history).length === 0) {
+        historyNoData.style.display = 'block';
+        historyTableContainer.style.display = 'none';
+        return;
+      }
+      
+      historyNoData.style.display = 'none';
+      historyTableContainer.style.display = 'table';
+      
+      // 准备图表数据
+      const dates = Object.keys(historyData.history).sort();
+      const playerCounts = dates.map(date => historyData.history[date]);
+      
+      // 渲染表格
+      historyTableBody.innerHTML = '';
+      dates.forEach(date => {
+        const row = document.createElement('tr');
+        const dateCell = document.createElement('td');
+        const countCell = document.createElement('td');
+        
+        dateCell.textContent = formatDate(date);
+        countCell.textContent = historyData.history[date];
+        
+        row.appendChild(dateCell);
+        row.appendChild(countCell);
+        historyTableBody.appendChild(row);
+      });
+      
+      // 渲染图表
+      renderHistoryChart(dates, playerCounts);
+    }
+
+    // 新增：格式化日期
+    function formatDate(dateString) {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    }
+
+    // 新增：渲染历史数据图表
+    function renderHistoryChart(dates, playerCounts) {
+      const ctx = historyChart.getContext('2d');
+      
+      // 销毁之前的图表实例
+      if (historyChartInstance) {
+        historyChartInstance.destroy();
+      }
+      
+      historyChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: dates.map(formatDate),
+          datasets: [{
+            label: '最大在线人数',
+            data: playerCounts,
+            borderColor: 'rgba(110, 231, 183, 0.8)',
+            backgroundColor: 'rgba(110, 231, 183, 0.1)',
+            tension: 0.3,
+            fill: true,
+            pointBackgroundColor: 'rgba(110, 231, 183, 1)',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: {
+                color: 'rgba(215, 225, 234, 0.8)'
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(14, 16, 18, 0.9)',
+              titleColor: 'rgba(215, 225, 234, 0.9)',
+              bodyColor: 'rgba(215, 225, 234, 0.8)',
+              borderColor: 'rgba(255, 255, 255, 0.1)',
+              borderWidth: 1,
+              displayColors: false
+            }
+          },
+          scales: {
+            x: {
+              grid: {
+                color: 'rgba(255, 255, 255, 0.05)'
+              },
+              ticks: {
+                color: 'rgba(215, 225, 234, 0.7)'
+              }
+            },
+            y: {
+              beginAtZero: true,
+              grid: {
+                color: 'rgba(255, 255, 255, 0.05)'
+              },
+              ticks: {
+                color: 'rgba(215, 225, 234, 0.7)'
+              }
+            }
+          }
+        }
+      });
+    }
+
     function debounce(func, wait) {
       let timeout;
       return function (...args) {
@@ -1081,8 +1342,9 @@
         const cellName = createCell(row, 'name', server.name || '-');
         cellName.addEventListener('mouseenter', e => showTooltip(cellName, server.name, e));
         cellName.addEventListener('mouseleave', hideTooltip);
-        cellName.addEventListener('click', e => showTooltip(cellName, server.name, e));
-        cellName.addEventListener('touchstart', e => { e.preventDefault(); showTooltip(cellName, server.name, e); });
+        // 修改：点击服务器名称时显示历史数据
+        cellName.addEventListener('click', () => showHistoryModal(server));
+        cellName.addEventListener('touchstart', e => { e.preventDefault(); showHistoryModal(server); });
         
         const cellIp = createCell(row, 'ip');
         const link = document.createElement('a');
@@ -1185,6 +1447,11 @@
         const modal = document.getElementById('supportModal');
         if (modal.classList.contains('show') && e.target === modal) {
           hideSupportModal();
+        }
+        
+        const historyModal = document.getElementById('historyModal');
+        if (historyModal.classList.contains('show') && e.target === historyModal) {
+          hideHistoryModal();
         }
         
         if (!gameFilter.contains(e.target)) gameFilter.classList.remove('open');

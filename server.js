@@ -233,12 +233,14 @@ logStartConfig();
 
 const GEO_CACHE_FILE = path.join(__dirname, 'geo_cache.json');
 const SERVER_LIST_FILE = path.join(__dirname, 'server_list.json');
+const SERVER_HISTORY_FILE = path.join(__dirname, 'server_history.json'); // 新增：服务器历史数据文件
 const TOKEN_FILE = path.join(__dirname, 'API_TOKEN.json');
 const APP_ID_FILE = path.join(__dirname, 'app_id.json');
 
 let clients = new Set();
 let geoCache = {};
 let serverMap = new Map(); // key: 'ip:port', value: {appId, lastSuccessful: number, failureCount: number, lastData: object|null}
+let serverHistory = {}; // 新增：存储服务器历史数据
 let isUpdatingServerInfo = false;
 
 function log(message) {
@@ -322,6 +324,44 @@ async function initializeServerListFile() {
       log(`检查或读取 server_list.json 失败: ${err.message}`);
       serverMap = new Map();
     }
+  }
+}
+
+// 新增：初始化服务器历史数据文件
+async function initializeServerHistoryFile() {
+  try {
+    await fs.access(SERVER_HISTORY_FILE);
+    log('server_history.json 文件已存在');
+    const data = await fs.readFile(SERVER_HISTORY_FILE, 'utf8');
+    if (data.trim()) {
+      serverHistory = JSON.parse(data);
+      log(`成功加载服务器历史数据，包含 ${Object.keys(serverHistory).length} 个服务器的历史记录`);
+    } else {
+      log('server_history.json 为空，初始化为空对象');
+      serverHistory = {};
+    }
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      log('server_history.json 不存在，正在创建...');
+      await fs.writeFile(SERVER_HISTORY_FILE, JSON.stringify({}, null, 2), 'utf8');
+      serverHistory = {};
+      log('server_history.json 创建成功');
+    } else {
+      log(`检查或读取 server_history.json 失败: ${err.message}`);
+      serverHistory = {};
+    }
+  }
+}
+
+// 新增：保存服务器历史数据
+async function saveServerHistory() {
+  const tempFile = SERVER_HISTORY_FILE + '.tmp';
+  try {
+    await fs.writeFile(tempFile, JSON.stringify(serverHistory, null, 2), 'utf8');
+    await fs.rename(tempFile, SERVER_HISTORY_FILE);
+    log('成功保存 server_history.json');
+  } catch (err) {
+    log(`写入 server_history.json 失败: ${err.message}`);
   }
 }
 
@@ -542,6 +582,61 @@ async function updateServerIPs() {
   }
 }
 
+// 新增：更新服务器历史数据
+async function updateServerHistory(serverInfo) {
+  try {
+    const key = `${serverInfo.ip}:${serverInfo.port}`;
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const currentPlayers = serverInfo.current_players || 0;
+    
+    // 检查服务器标识是否改变
+    if (serverHistory[key]) {
+      const history = serverHistory[key];
+      if (history.name !== serverInfo.name || 
+          history.ip !== serverInfo.ip || 
+          history.port !== serverInfo.port) {
+        // 服务器标识已改变，重置历史数据
+        log(`服务器标识已改变，重置历史数据: ${key}`);
+        serverHistory[key] = {
+          name: serverInfo.name,
+          ip: serverInfo.ip,
+          port: serverInfo.port,
+          history: {}
+        };
+      }
+    } else {
+      // 新服务器，初始化历史数据
+      serverHistory[key] = {
+        name: serverInfo.name,
+        ip: serverInfo.ip,
+        port: serverInfo.port,
+        history: {}
+      };
+    }
+    
+    // 更新今天的在线人数（取最大值）
+    const serverData = serverHistory[key];
+    if (!serverData.history[today] || currentPlayers > serverData.history[today]) {
+      serverData.history[today] = currentPlayers;
+      log(`更新服务器历史数据: ${key} - ${today}: ${currentPlayers} 玩家`);
+    }
+    
+    // 清理超过30天的数据
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    Object.keys(serverData.history).forEach(date => {
+      if (new Date(date) < thirtyDaysAgo) {
+        delete serverData.history[date];
+      }
+    });
+    
+    await saveServerHistory();
+  } catch (err) {
+    log(`更新服务器历史数据失败: ${err.message}`);
+  }
+}
+
 async function updateServerInfo() {
   if (isUpdatingServerInfo) {
     log('上一次更新仍在进行中，跳过本次执行');
@@ -564,6 +659,10 @@ async function updateServerInfo() {
         server.lastData = data;
         server.failureCount = 0;
         server.lastSuccessful = Date.now();
+        
+        // 新增：更新服务器历史数据
+        await updateServerHistory(data);
+        
         return data;
       } else {
         server.failureCount = (server.failureCount || 0) + 1;
@@ -728,7 +827,7 @@ async function startServersAndServices() {
 
   // 以下保持原逻辑：初始化文件、定时任务等
   try {
-    await Promise.all([initializeGeoCacheFile(), initializeServerListFile()]);
+    await Promise.all([initializeGeoCacheFile(), initializeServerListFile(), initializeServerHistoryFile()]);
   } catch (err) {
     log(`初始化文件失败: ${err.message}`);
     // 继续也许可以运行，但提醒
@@ -753,9 +852,23 @@ app.get('/api/servers', async (req, res) => {
   res.json({ message: '服务器列表已通过 WebSocket 推送' });
 });
 
+// 新增：获取服务器历史数据的API端点
+app.get('/api/server-history/:key', async (req, res) => {
+  try {
+    const key = req.params.key;
+    if (serverHistory[key]) {
+      res.json(serverHistory[key]);
+    } else {
+      res.status(404).json({ error: '未找到该服务器的历史数据' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: '获取服务器历史数据失败' });
+  }
+});
+
 // 安全修复：阻止访问敏感文件
 app.use((req, res, next) => {
-  const blockedFiles = ['API_TOKEN.json', 'geo_cache.json', 'server_list.json', 'app_id.json', 'your_domain.pfx'];
+  const blockedFiles = ['API_TOKEN.json', 'geo_cache.json', 'server_list.json', 'server_history.json', 'app_id.json', 'your_domain.pfx'];
   const requestedFile = path.basename(req.path);
   if (blockedFiles.includes(requestedFile)) {
     return res.status(403).send('Forbidden');
