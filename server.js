@@ -242,6 +242,7 @@ let geoCache = {};
 let serverMap = new Map(); // key: 'ip:port', value: {appId, lastSuccessful: number, failureCount: number, lastData: object|null}
 let serverHistory = {}; // 新增：存储服务器历史数据
 let isUpdatingServerInfo = false;
+let lastHistoryDate = null; // 新增：记录上次统计的日期
 
 function log(message) {
   const now = new Date();
@@ -582,12 +583,35 @@ async function updateServerIPs() {
   }
 }
 
+// 新增：获取本地日期字符串（修复时区问题）
+function getLocalDateString() {
+  const now = new Date();
+  // 使用本地时间而不是UTC时间
+  const year = now.getFullYear();
+  const month = (now.getMonth() + 1).toString().padStart(2, '0');
+  const day = now.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// 新增：检查是否需要重置历史数据（新的一天）
+function checkAndResetHistoryIfNewDay() {
+  const today = getLocalDateString();
+  
+  // 如果是新的一天，重置lastHistoryDate并记录日志
+  if (lastHistoryDate !== today) {
+    log(`检测到新的一天: ${lastHistoryDate || '无记录'} -> ${today}`);
+    lastHistoryDate = today;
+    return true;
+  }
+  
+  return false;
+}
+
 // 新增：更新服务器历史数据
 async function updateServerHistory(serverInfo) {
   try {
     const key = `${serverInfo.ip}:${serverInfo.port}`;
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const currentPlayers = serverInfo.current_players || 0;
+    const today = getLocalDateString(); // 使用本地日期
     
     // 检查服务器标识是否改变
     if (serverHistory[key]) {
@@ -616,17 +640,18 @@ async function updateServerHistory(serverInfo) {
     
     // 更新今天的在线人数（取最大值）
     const serverData = serverHistory[key];
-    if (!serverData.history[today] || currentPlayers > serverData.history[today]) {
-      serverData.history[today] = currentPlayers;
-      log(`更新服务器历史数据: ${key} - ${today}: ${currentPlayers} 玩家`);
+    if (!serverData.history[today] || serverInfo.current_players > serverData.history[today]) {
+      serverData.history[today] = serverInfo.current_players;
+      log(`更新服务器历史数据: ${key} - ${today}: ${serverInfo.current_players} 玩家`);
     }
     
     // 清理超过30天的数据
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = getLocalDateString(thirtyDaysAgo);
     
     Object.keys(serverData.history).forEach(date => {
-      if (new Date(date) < thirtyDaysAgo) {
+      if (date < thirtyDaysAgoStr) {
         delete serverData.history[date];
       }
     });
@@ -645,6 +670,11 @@ async function updateServerInfo() {
   isUpdatingServerInfo = true;
 
   try {
+    // 检查是否是新的一天，如果是则记录日志
+    if (checkAndResetHistoryIfNewDay()) {
+      log(`新的一天开始，将继续记录历史数据: ${lastHistoryDate}`);
+    }
+    
     const keys = Array.from(serverMap.keys());
     log(`开始并发查询 ${keys.length} 台服务器信息（并发上限 ${CONCURRENCY}）`);
 
@@ -832,6 +862,10 @@ async function startServersAndServices() {
     log(`初始化文件失败: ${err.message}`);
     // 继续也许可以运行，但提醒
   }
+
+  // 初始化lastHistoryDate
+  lastHistoryDate = getLocalDateString();
+  log(`当前日期: ${lastHistoryDate}`);
 
   // 立即清理一次
   await cleanServerList();
