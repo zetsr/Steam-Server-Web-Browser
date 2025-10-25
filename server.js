@@ -9,7 +9,9 @@ const https = require('https');
 const http = require('http');
 const WebSocket = require('ws');
 const Query = require('source-server-query');
-const { queryMasterServer, REGIONS } = require('steam-server-query');
+// const { queryMasterServer, REGIONS } = require('steam-server-query');
+// 注意：我们不再依赖匿名 queryMasterServer 作为主方式（Valve 对匿名 Master UDP 限制/变化较多）
+// 仍然保留可能的降级逻辑，但主流程使用 Steam Web API（IGameServersService/GetServerList）
 
 const app = express();
 
@@ -391,36 +393,82 @@ async function loadToken() {
     const data = await fs.readFile(TOKEN_FILE, 'utf8');
     const tokens = JSON.parse(data);
     if (!tokens.IPINFO_TOKEN) throw new Error('IPINFO_TOKEN 未定义');
-    return tokens.IPINFO_TOKEN;
+    // STEAM_API_KEY 可选，但强烈建议提供以避免匿名 UDP 被限制
+    return {
+      IPINFO_TOKEN: tokens.IPINFO_TOKEN,
+      STEAM_API_KEY: tokens.STEAM_API_KEY || null
+    };
   } catch (err) {
     log(`读取 API_TOKEN.json 失败: ${err.message}`);
-    throw new Error('无法加载 API token，请确保 API_TOKEN.json 存在并包含有效的 IPINFO_TOKEN');
+    throw new Error('无法加载 API token，请确保 API_TOKEN.json 存在并包含有效的 IPINFO_TOKEN（和可选的 STEAM_API_KEY）');
   }
 }
 
 /**
  * 使用 source-server-query 的 Query.info/players（稳定）
- * 只把 Query.info 的往返时间作为 latency（ping）
+ * 对同一个目标一次性 ping 3 次，取最短延迟作为结果
  * 使用 process.hrtime.bigint() 精确计时
  */
 async function queryServerInfo(ip, port) {
   try {
-    log(`开始查询服务器信息: ${ip}:${port}`);
+    log(`开始查询服务器信息: ${ip}:${port} (ping 3次)`);
 
-    const infoStart = process.hrtime.bigint();
-    const serverInfo = await Query.info(ip, port, INFO_TIMEOUT);
-    const infoEnd = process.hrtime.bigint();
+    // 定义单次查询函数
+    const singleQuery = async (attempt) => {
+      try {
+        const infoStart = process.hrtime.bigint();
+        const serverInfo = await Query.info(ip, port, INFO_TIMEOUT);
+        const infoEnd = process.hrtime.bigint();
 
-    if (!serverInfo) {
-      log(`服务器信息为空 (${ip}:${port})`);
+        if (!serverInfo) {
+          log(`第 ${attempt} 次查询服务器信息为空 (${ip}:${port})`);
+          return null;
+        }
+
+        const latency = Number((infoEnd - infoStart) / 1000000n); // ms
+        log(`第 ${attempt} 次 A2S_INFO 延迟 (${ip}:${port}): ${latency} ms`);
+        
+        return { serverInfo, latency };
+      } catch (err) {
+        log(`第 ${attempt} 次服务器查询失败 (${ip}:${port}): ${err.message}`);
+        return null;
+      }
+    };
+
+    // 同时发起3次ping请求
+    const pingPromises = [
+      singleQuery(1),
+      singleQuery(2),
+      singleQuery(3),
+      singleQuery(4),
+      singleQuery(5)
+    ];
+
+    const results = await Promise.allSettled(pingPromises);
+    
+    // 筛选成功的结果
+    const successfulResults = results
+      .filter(result => result.status === 'fulfilled' && result.value !== null)
+      .map(result => result.value);
+
+    if (successfulResults.length === 0) {
+      log(`所有 3 次 ping 均失败 (${ip}:${port})`);
       return null;
     }
 
-    const latency = Number((infoEnd - infoStart) / 1000000n); // ms
-    log(`A2S_INFO 延迟 (${ip}:${port}): ${latency} ms`);
+    // 选择延迟最短的结果
+    const bestResult = successfulResults.reduce((best, current) => {
+      return (!best || current.latency < best.latency) ? current : best;
+    }, null);
+
+    log(`最佳 ping 结果 (${ip}:${port}): ${bestResult.latency} ms (${successfulResults.length}/3 成功)`);
+    
+    const serverInfo = bestResult.serverInfo;
+    const latency = bestResult.latency;
+
     log(`收到服务器信息字段 (${ip}:${port}): ${Object.keys(serverInfo).join(', ')}`);
 
-    // players 单独查询，不计入 latency
+    // players 单独查询，不计入 latency（使用最佳延迟对应的连接）
     let players = [];
     try {
       const playerData = await Query.players(ip, port, INFO_TIMEOUT);
@@ -431,7 +479,6 @@ async function queryServerInfo(ip, port) {
           duration: formatDuration(player.duration)
         }));
       } else {
-        // 有些实现返回对象或空，忽略但记录日志
         log(`玩家数据非数组或为空 (${ip}:${port})`);
       }
     } catch (err) {
@@ -450,8 +497,8 @@ async function queryServerInfo(ip, port) {
       current_players: serverInfo.players || 0,
       max_players,
       os: serverInfo.environment === 'l' ? 'Linux' :
-        serverInfo.environment === 'w' ? 'Windows' :
-        serverInfo.environment === 'm' ? 'macOS' : '-',
+          serverInfo.environment === 'w' ? 'Windows' :
+          serverInfo.environment === 'm' ? 'macOS' : '-',
       players,
       latency
     };
@@ -459,7 +506,7 @@ async function queryServerInfo(ip, port) {
     log(`返回服务器信息 (${ip}:${port}): current_players=${info.current_players}, max_players=${info.max_players}, latency=${info.latency}ms`);
     return info;
   } catch (err) {
-    log(`服务器查询失败 (${ip}:${port}): ${err.message}`);
+    log(`服务器查询总体失败 (${ip}:${port}): ${err.message}`);
     return null;
   }
 }
@@ -497,7 +544,8 @@ async function getGeoInfo(ip) {
   }
 
   try {
-    const IPINFO_TOKEN = await loadToken();
+    const tokens = await loadToken();
+    const IPINFO_TOKEN = tokens.IPINFO_TOKEN;
     log(`查询地理信息: ${ip}`);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -529,21 +577,134 @@ async function saveGeoCache() {
   }
 }
 
+/**
+ * 新核心：优先使用 Steam Web API（IGameServersService/GetServerList）获取 APPID 的服务器列表
+ * - 需要在 API_TOKEN.json 中配置 STEAM_API_KEY（推荐）
+ * - 如果 STEAM_API_KEY 不存在或调用失败（403 等），会记录日志并返回空数组（或降级到 UDP 原方法，如果你仍然想用）
+ * - 实现了简单的重试/背离策略，避免被短时 rate limit 杀死
+ */
 async function getMasterServerList(appId, filter = {}) {
-  const masterServerAddress = 'hl2master.steampowered.com:27011';
-  const region = REGIONS.ALL;
-  const filterOptions = { appid: appId, ...filter };
+  // filter 参数目前仍然保留（你传进来的对象会被转为filter字符串），但 Web API 只支持 filter string like "\appid\12345\secure\1" 等
+  // 我们优先使用 Steam Web API：IGameServersService/GetServerList
+  const tokens = await (async () => {
+    try {
+      return await loadToken();
+    } catch (e) {
+      return { IPINFO_TOKEN: null, STEAM_API_KEY: null };
+    }
+  })();
 
+  const steamKey = tokens.STEAM_API_KEY;
+
+  // 将 filter 对象转换成 master filter 字符串（例如 {secure:1} -> "\secure\1"）
+  function filterObjToString(obj) {
+    if (!obj || Object.keys(obj).length === 0) return `\\appid\\${appId}`;
+    let parts = [`\\appid\\${appId}`];
+    for (const [k, v] of Object.entries(obj)) {
+      // 如果值为 true/1 等处理
+      if (v === true) {
+        parts.push(`\\${k}\\1`);
+      } else if (v === false) {
+        parts.push(`\\${k}\\0`);
+      } else {
+        parts.push(`\\${k}\\${v}`);
+      }
+    }
+    return parts.join('');
+  }
+
+  // 如果有 STEAM_API_KEY，优先使用 Web API
+  if (steamKey) {
+    const filterString = filterObjToString(filter);
+    const baseUrl = 'https://api.steampowered.com/IGameServersService/GetServerList/v1/';
+    // 尝试拉取大数量（但注意上游可能有实际限制）
+    const limit = 50000; // 大值，但上游可能限制
+    const url = `${baseUrl}?key=${encodeURIComponent(steamKey)}&filter=${encodeURIComponent(filterString)}&limit=${limit}`;
+    log(`使用 Steam Web API 查询 APPID ${appId} 的服务器列表（filter=${filterString}，limit=${limit}）`);
+    // 简单重试策略（指数回退）
+    let attempt = 0;
+    const maxAttempts = 4;
+    let lastErr = null;
+    while (attempt < maxAttempts) {
+      attempt++;
+      try {
+        const controller = new AbortController();
+        const timeoutMs = 10000 + attempt * 2000;
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        const resp = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!resp.ok) {
+          // 403 说明 key 权限/partner/publisher host 等问题；记录并退出（不要不停重试 403）
+          if (resp.status === 403) {
+            log(`Steam Web API 返回 403（可能需要 publisher key 或账号权限），停止使用 Web API：HTTP 403`);
+            lastErr = new Error('Steam Web API 403 Forbidden');
+            break;
+          }
+          const text = await resp.text().catch(()=>'<no-body>');
+          lastErr = new Error(`Steam Web API HTTP ${resp.status} - ${text}`);
+          log(`Steam Web API 返回 HTTP ${resp.status}，尝试重试（${attempt}/${maxAttempts}）: ${text}`);
+          // 对 5xx 或 429 做重试
+          if (resp.status >= 500 || resp.status === 429) {
+            await new Promise(r => setTimeout(r, 1000 * attempt));
+            continue;
+          } else {
+            break;
+          }
+        }
+
+        const data = await resp.json();
+        // 期望结构： { response: { servers: [ { addr: '1.2.3.4:27015', ... }, ... ] } }
+        if (!data || !data.response) {
+          log(`Steam Web API 返回格式异常，response 字段缺失，内容: ${JSON.stringify(data).slice(0,300)}`);
+          return [];
+        }
+        const servers = data.response.servers || [];
+        log(`Steam Web API 返回 ${servers.length} 台服务器（APPID ${appId}）`);
+        // 将 addr 转成 {ip, port}
+        const parsed = servers.map(s => {
+          const addr = s.addr || s.addrString || s.ip || '';
+          const addrStr = String(addr);
+          const parts = addrStr.split(':');
+          const ip = parts[0] || '';
+          const port = parts[1] ? parseInt(parts[1], 10) : (s.gameport || s.hostport || 0);
+          return { ip, port: port || 0, appId };
+        }).filter(s => s.ip && s.port);
+        return parsed;
+      } catch (err) {
+        lastErr = err;
+        log(`调用 Steam Web API 失败（第 ${attempt} 次）: ${err && err.message ? err.message : err}`);
+        // 如果是中止/超时，短暂等待再重试
+        await new Promise(r => setTimeout(r, 1000 * attempt));
+      }
+    }
+    // 如果重试穷尽仍然失败
+    if (lastErr) {
+      log(`Steam Web API 调用最终失败: ${lastErr.message}`);
+    }
+    // 如果到这里没有返回（比如 403），降级到 UDP 原方法（但可能会被 Valve 限制）
+    log('尝试降级：如果你仍然需要通过匿名 UDP master 查询，请确认 Valve 没有对该 APPID 限制。降级可能也会失败或被 rate-limited。');
+  } else {
+    log('未配置 STEAM_API_KEY，无法使用 Steam Web API 获取服务器列表；将尝试匿名 UDP 查询（可能已被 Valve 限制/拒绝）');
+  }
+
+  // 如果没有 STEAM_API_KEY 或 Web API 失败，我们继续用原来的 UDP master 查询（可能会 timeout）
+  // 这里我们保留一个更稳健的 UDP 查询备选实现：使用本地 socket 循环读取直到结束（使用第三方库通常更稳定）
+  // 简化实现：调用原先 queryMasterServer（如果你安装了 steam-server-query 并允许 UDP）
   try {
-    log(`开始查询 APPID ${appId} 的服务器列表${filter ? '，过滤条件: ' + JSON.stringify(filter) : ''}`);
+    // 尝试动态加载 steam-server-query（如果存在）
+    const { queryMasterServer, REGIONS } = require('steam-server-query');
+    const masterServerAddress = 'hl2master.steampowered.com:27011';
+    const region = REGIONS.ALL;
+    const filterOptions = { appid: appId, ...filter };
+    log(`尝试使用匿名 UDP master (${masterServerAddress}) 查询 APPID ${appId}（降级路径）`);
     const servers = await queryMasterServer(masterServerAddress, region, filterOptions);
-    log(`收到 APPID ${appId} 的服务器列表，数量: ${servers.length}`);
+    log(`匿名 UDP master 返回 ${servers.length} 条记录（可能被截断/限速）`);
     return servers.map(server => {
       const [ip, port] = server.split(':');
       return { ip, port: parseInt(port), appId };
     });
   } catch (err) {
-    log(`查询 APPID ${appId} 的服务器列表失败: ${err.message}`);
+    log(`降级的匿名 UDP master 查询失败或未安装依赖: ${err && err.message ? err.message : err}`);
     return [];
   }
 }

@@ -1,3 +1,4 @@
 {
-    "IPINFO_TOKEN": "YOUR_KEY"
+  "IPINFO_TOKEN": "你的密钥",
+  "STEAM_API_KEY": "你的密钥"
 }
