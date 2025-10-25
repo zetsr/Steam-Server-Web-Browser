@@ -9,26 +9,10 @@ const https = require('https');
 const http = require('http');
 const WebSocket = require('ws');
 const Query = require('source-server-query');
-// const { queryMasterServer, REGIONS } = require('steam-server-query');
-// 注意：我们不再依赖匿名 queryMasterServer 作为主方式（Valve 对匿名 Master UDP 限制/变化较多）
-// 仍然保留可能的降级逻辑，但主流程使用 Steam Web API（IGameServersService/GetServerList）
 
 const app = express();
 
-// -----------------------------
-// 启动参数解析（大小写不敏感、优雅降级）
-// 支持形式：--port=3000 或 --PORT=3000 或 --port 3000
-// 支持时间参数单位： "30s" (秒), "30000ms" (毫秒)，对于 UpdateServer* 默认把裸数字当作 秒；
-// 对于 INFO_TIMEOUT 裸数字当作 毫秒。
-// 另外新增/支持参数：
-// --https_port (HTTPS 端口，兼容旧的 --port)
-// --http_port (HTTP 端口，用于 HTTP->HTTPS 重定向，默认 80)
-// --redirect_http (true/false, 是否启用 HTTP->HTTPS 重定向，默认 true)
-// --pfx_path 或 --pfx (pfx 相对或绝对路径，命令行优先)
-// --pfx_passphrase (pfx 密码，可选；或用环境变量 PFX_PASSPHRASE)
-// 环境变量 PFX_PATH 可作为后备
-// 默认 pfx 文件名为 ./your_domain.pfx（请在部署时替换为你的证书文件）
-// -----------------------------
+// 配置和参数解析部分保持不变...
 function parseArgs() {
   const argv = process.argv.slice(2);
   const args = {};
@@ -62,7 +46,6 @@ function toInt(val, fallback) {
   return Number.isNaN(n) ? fallback : n;
 }
 
-// 解析 UpdateServerIPsTime / UpdateServerInfoTime：默认把裸数字当作 秒 -> 返回毫秒
 function parseIntervalToMs(val, fallbackMs) {
   if (val === undefined || val === null) return fallbackMs;
   if (typeof val === 'number') return Math.max(0, Math.floor(val)) * 1000;
@@ -74,13 +57,11 @@ function parseIntervalToMs(val, fallbackMs) {
     const n = parseFloat(s.slice(0, -1));
     return Number.isNaN(n) ? fallbackMs : Math.max(0, Math.floor(n * 1000));
   } else {
-    // 裸数字：当作秒
     const n = parseFloat(s);
     return Number.isNaN(n) ? fallbackMs : Math.max(0, Math.floor(n * 1000));
   }
 }
 
-// 解析 INFO_TIMEOUT：裸数字当作毫秒；支持 's' / 'ms'
 function parseTimeoutToMs(val, fallbackMs) {
   if (val === undefined || val === null) return fallbackMs;
   if (typeof val === 'number') return Math.max(0, Math.floor(val));
@@ -92,7 +73,6 @@ function parseTimeoutToMs(val, fallbackMs) {
     const n = parseFloat(s.slice(0, -1));
     return Number.isNaN(n) ? fallbackMs : Math.max(0, Math.floor(n * 1000));
   } else {
-    // 裸数字：当作毫秒
     const n = parseInt(s, 10);
     return Number.isNaN(n) ? fallbackMs : Math.max(0, n);
   }
@@ -100,21 +80,18 @@ function parseTimeoutToMs(val, fallbackMs) {
 
 const rawArgs = parseArgs();
 
-// 默认值
-let httpsPort = 443; // default HTTPS
-let httpPort = 80; // default HTTP redirect port
+let httpsPort = 443;
+let httpPort = 80;
 let enableHttpRedirect = true;
-let pfxPath = path.join(__dirname, 'your_domain.pfx'); // <- 默认改为 your_domain.pfx
+let pfxPath = path.join(__dirname, 'your_domain.pfx');
 let pfxPassphrase = undefined;
 
-let CONCURRENCY = 10; // 并发上限（根据机器能力调节；测试时可降到 5/10）
-let INFO_TIMEOUT = 2000; // ms，用于 Query.info 的超时
-let UpdateServerIPsTimeMs = 600 * 1000; // 默认 600 秒 -> ms
-let UpdateServerInfoTimeMs = 30 * 1000; // 默认 30 秒 -> ms
+let CONCURRENCY = 10;
+let INFO_TIMEOUT = 2000;
+let UpdateServerIPsTimeMs = 600 * 1000;
+let UpdateServerInfoTimeMs = 30 * 1000;
 
-// 从 rawArgs 中读取并校验
 try {
-  // 兼容旧的 --port，把它当作 HTTPS 端口
   if (rawArgs.port !== undefined) {
     const p = toInt(rawArgs.port, null);
     if (p && p > 0 && p < 65536) {
@@ -147,7 +124,6 @@ try {
     enableHttpRedirect = (v === 'true' || v === '1' || v === 'yes');
   }
 
-  // pfx_path 或 pfx（命令行优先）
   if (rawArgs.pfx_path !== undefined) {
     pfxPath = path.isAbsolute(rawArgs.pfx_path) ? rawArgs.pfx_path : path.join(process.cwd(), rawArgs.pfx_path);
   } else if (rawArgs.pfx !== undefined) {
@@ -155,7 +131,6 @@ try {
   } else if (process.env.PFX_PATH) {
     pfxPath = path.isAbsolute(process.env.PFX_PATH) ? process.env.PFX_PATH : path.join(process.cwd(), process.env.PFX_PATH);
   } else {
-    // 保持默认（./your_domain.pfx）
     pfxPath = path.isAbsolute(pfxPath) ? pfxPath : path.join(process.cwd(), path.relative(process.cwd(), pfxPath));
   }
 
@@ -165,7 +140,6 @@ try {
     pfxPassphrase = process.env.PFX_PASSPHRASE;
   }
 
-  // concurrency
   if (rawArgs.concurrency !== undefined) {
     const c = toInt(rawArgs.concurrency, null);
     if (c && c > 0) {
@@ -175,7 +149,6 @@ try {
     }
   }
 
-  // INFO_TIMEOUT
   if (rawArgs.info_timeout !== undefined) {
     const t = parseTimeoutToMs(rawArgs.info_timeout, INFO_TIMEOUT);
     if (t >= 0) {
@@ -188,7 +161,6 @@ try {
     if (t >= 0) INFO_TIMEOUT = t;
   }
 
-  // UpdateServerIPsTime
   if (rawArgs.updateserveripstime !== undefined) {
     const tms = parseIntervalToMs(rawArgs.updateserveripstime, UpdateServerIPsTimeMs);
     if (tms >= 0) {
@@ -198,7 +170,6 @@ try {
     }
   }
 
-  // UpdateServerInfoTime
   if (rawArgs.updateserverinfotime !== undefined) {
     const tms = parseIntervalToMs(rawArgs.updateserverinfotime, UpdateServerInfoTimeMs);
     if (tms >= 0) {
@@ -212,7 +183,6 @@ try {
   console.warn('[WARN] 解析启动参数时发生异常，使用全部默认配置：', e && e.message ? e.message : e);
 }
 
-// 打印最终使用的配置
 function logStartConfig() {
   console.log('------------------ 启动配置 ------------------');
   console.log(`HTTPS_PORT: ${httpsPort}`);
@@ -228,23 +198,25 @@ function logStartConfig() {
 }
 logStartConfig();
 
-// -----------------------------
-// 下面是你原有的逻辑（尽量保持不变）
-// 我们将在异步初始化里启动 HTTPS/HTTP 并挂载 WebSocket Server
-// -----------------------------
-
+// 文件路径定义
 const GEO_CACHE_FILE = path.join(__dirname, 'geo_cache.json');
 const SERVER_LIST_FILE = path.join(__dirname, 'server_list.json');
-const SERVER_HISTORY_FILE = path.join(__dirname, 'server_history.json'); // 新增：服务器历史数据文件
+const SERVER_HISTORY_FILE = path.join(__dirname, 'server_history.json');
+const GLOBAL_STATS_FILE = path.join(__dirname, 'global_stats.json'); // 新增：全局统计数据文件
 const TOKEN_FILE = path.join(__dirname, 'API_TOKEN.json');
 const APP_ID_FILE = path.join(__dirname, 'app_id.json');
 
 let clients = new Set();
 let geoCache = {};
-let serverMap = new Map(); // key: 'ip:port', value: {appId, lastSuccessful: number, failureCount: number, lastData: object|null}
-let serverHistory = {}; // 新增：存储服务器历史数据
+let serverMap = new Map();
+let serverHistory = {};
+let globalStats = { // 新增：全局统计数据
+  games: {},
+  history: {},
+  lastUpdated: null
+};
 let isUpdatingServerInfo = false;
-let lastHistoryDate = null; // 新增：记录上次统计的日期
+let lastHistoryDate = null;
 
 function log(message) {
   const now = new Date();
@@ -269,8 +241,47 @@ function broadcastVisitorCount() {
   log(`推送在线人数: ${count} 位访客`);
 }
 
-let wss = null; // will be created after server startup
+let wss = null;
 
+// 新增：初始化全局统计数据文件
+async function initializeGlobalStatsFile() {
+  try {
+    await fs.access(GLOBAL_STATS_FILE);
+    log('global_stats.json 文件已存在');
+    const data = await fs.readFile(GLOBAL_STATS_FILE, 'utf8');
+    if (data.trim()) {
+      globalStats = JSON.parse(data);
+      log(`成功加载全局统计数据，包含 ${Object.keys(globalStats.games).length} 个游戏的数据`);
+    } else {
+      log('global_stats.json 为空，初始化为空对象');
+      globalStats = { games: {}, history: {}, lastUpdated: null };
+    }
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      log('global_stats.json 不存在，正在创建...');
+      await fs.writeFile(GLOBAL_STATS_FILE, JSON.stringify({ games: {}, history: {}, lastUpdated: null }, null, 2), 'utf8');
+      globalStats = { games: {}, history: {}, lastUpdated: null };
+      log('global_stats.json 创建成功');
+    } else {
+      log(`检查或读取 global_stats.json 失败: ${err.message}`);
+      globalStats = { games: {}, history: {}, lastUpdated: null };
+    }
+  }
+}
+
+// 新增：保存全局统计数据
+async function saveGlobalStats() {
+  const tempFile = GLOBAL_STATS_FILE + '.tmp';
+  try {
+    await fs.writeFile(tempFile, JSON.stringify(globalStats, null, 2), 'utf8');
+    await fs.rename(tempFile, GLOBAL_STATS_FILE);
+    log('成功保存 global_stats.json');
+  } catch (err) {
+    log(`写入 global_stats.json 失败: ${err.message}`);
+  }
+}
+
+// 原有的初始化函数保持不变...
 async function initializeGeoCacheFile() {
   try {
     await fs.access(GEO_CACHE_FILE);
@@ -330,7 +341,6 @@ async function initializeServerListFile() {
   }
 }
 
-// 新增：初始化服务器历史数据文件
 async function initializeServerHistoryFile() {
   try {
     await fs.access(SERVER_HISTORY_FILE);
@@ -356,7 +366,6 @@ async function initializeServerHistoryFile() {
   }
 }
 
-// 新增：保存服务器历史数据
 async function saveServerHistory() {
   const tempFile = SERVER_HISTORY_FILE + '.tmp';
   try {
@@ -393,7 +402,6 @@ async function loadToken() {
     const data = await fs.readFile(TOKEN_FILE, 'utf8');
     const tokens = JSON.parse(data);
     if (!tokens.IPINFO_TOKEN) throw new Error('IPINFO_TOKEN 未定义');
-    // STEAM_API_KEY 可选，但强烈建议提供以避免匿名 UDP 被限制
     return {
       IPINFO_TOKEN: tokens.IPINFO_TOKEN,
       STEAM_API_KEY: tokens.STEAM_API_KEY || null
@@ -404,16 +412,11 @@ async function loadToken() {
   }
 }
 
-/**
- * 使用 source-server-query 的 Query.info/players（稳定）
- * 对同一个目标一次性 ping 3 次，取最短延迟作为结果
- * 使用 process.hrtime.bigint() 精确计时
- */
+// 原有的服务器查询函数保持不变...
 async function queryServerInfo(ip, port) {
   try {
     log(`开始查询服务器信息: ${ip}:${port} (ping 3次)`);
 
-    // 定义单次查询函数
     const singleQuery = async (attempt) => {
       try {
         const infoStart = process.hrtime.bigint();
@@ -425,7 +428,7 @@ async function queryServerInfo(ip, port) {
           return null;
         }
 
-        const latency = Number((infoEnd - infoStart) / 1000000n); // ms
+        const latency = Number((infoEnd - infoStart) / 1000000n);
         log(`第 ${attempt} 次 A2S_INFO 延迟 (${ip}:${port}): ${latency} ms`);
         
         return { serverInfo, latency };
@@ -435,7 +438,6 @@ async function queryServerInfo(ip, port) {
       }
     };
 
-    // 同时发起3次ping请求
     const pingPromises = [
       singleQuery(1),
       singleQuery(2),
@@ -446,7 +448,6 @@ async function queryServerInfo(ip, port) {
 
     const results = await Promise.allSettled(pingPromises);
     
-    // 筛选成功的结果
     const successfulResults = results
       .filter(result => result.status === 'fulfilled' && result.value !== null)
       .map(result => result.value);
@@ -456,7 +457,6 @@ async function queryServerInfo(ip, port) {
       return null;
     }
 
-    // 选择延迟最短的结果
     const bestResult = successfulResults.reduce((best, current) => {
       return (!best || current.latency < best.latency) ? current : best;
     }, null);
@@ -468,7 +468,6 @@ async function queryServerInfo(ip, port) {
 
     log(`收到服务器信息字段 (${ip}:${port}): ${Object.keys(serverInfo).join(', ')}`);
 
-    // players 单独查询，不计入 latency（使用最佳延迟对应的连接）
     let players = [];
     try {
       const playerData = await Query.players(ip, port, INFO_TIMEOUT);
@@ -518,7 +517,6 @@ function formatDuration(seconds) {
   return `${h}h${m}m${s}s`;
 }
 
-// 并发池：限制同时进行的查询数，避免系统排队
 async function asyncPool(items, poolLimit, iteratorFn) {
   const ret = [];
   const executing = new Set();
@@ -577,15 +575,8 @@ async function saveGeoCache() {
   }
 }
 
-/**
- * 新核心：优先使用 Steam Web API（IGameServersService/GetServerList）获取 APPID 的服务器列表
- * - 需要在 API_TOKEN.json 中配置 STEAM_API_KEY（推荐）
- * - 如果 STEAM_API_KEY 不存在或调用失败（403 等），会记录日志并返回空数组（或降级到 UDP 原方法，如果你仍然想用）
- * - 实现了简单的重试/背离策略，避免被短时 rate limit 杀死
- */
+// 原有的主服务器列表获取函数保持不变...
 async function getMasterServerList(appId, filter = {}) {
-  // filter 参数目前仍然保留（你传进来的对象会被转为filter字符串），但 Web API 只支持 filter string like "\appid\12345\secure\1" 等
-  // 我们优先使用 Steam Web API：IGameServersService/GetServerList
   const tokens = await (async () => {
     try {
       return await loadToken();
@@ -596,12 +587,10 @@ async function getMasterServerList(appId, filter = {}) {
 
   const steamKey = tokens.STEAM_API_KEY;
 
-  // 将 filter 对象转换成 master filter 字符串（例如 {secure:1} -> "\secure\1"）
   function filterObjToString(obj) {
     if (!obj || Object.keys(obj).length === 0) return `\\appid\\${appId}`;
     let parts = [`\\appid\\${appId}`];
     for (const [k, v] of Object.entries(obj)) {
-      // 如果值为 true/1 等处理
       if (v === true) {
         parts.push(`\\${k}\\1`);
       } else if (v === false) {
@@ -613,15 +602,13 @@ async function getMasterServerList(appId, filter = {}) {
     return parts.join('');
   }
 
-  // 如果有 STEAM_API_KEY，优先使用 Web API
   if (steamKey) {
     const filterString = filterObjToString(filter);
     const baseUrl = 'https://api.steampowered.com/IGameServersService/GetServerList/v1/';
-    // 尝试拉取大数量（但注意上游可能有实际限制）
-    const limit = 50000; // 大值，但上游可能限制
+    const limit = 50000;
     const url = `${baseUrl}?key=${encodeURIComponent(steamKey)}&filter=${encodeURIComponent(filterString)}&limit=${limit}`;
     log(`使用 Steam Web API 查询 APPID ${appId} 的服务器列表（filter=${filterString}，limit=${limit}）`);
-    // 简单重试策略（指数回退）
+    
     let attempt = 0;
     const maxAttempts = 4;
     let lastErr = null;
@@ -634,7 +621,6 @@ async function getMasterServerList(appId, filter = {}) {
         const resp = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
         if (!resp.ok) {
-          // 403 说明 key 权限/partner/publisher host 等问题；记录并退出（不要不停重试 403）
           if (resp.status === 403) {
             log(`Steam Web API 返回 403（可能需要 publisher key 或账号权限），停止使用 Web API：HTTP 403`);
             lastErr = new Error('Steam Web API 403 Forbidden');
@@ -643,7 +629,6 @@ async function getMasterServerList(appId, filter = {}) {
           const text = await resp.text().catch(()=>'<no-body>');
           lastErr = new Error(`Steam Web API HTTP ${resp.status} - ${text}`);
           log(`Steam Web API 返回 HTTP ${resp.status}，尝试重试（${attempt}/${maxAttempts}）: ${text}`);
-          // 对 5xx 或 429 做重试
           if (resp.status >= 500 || resp.status === 429) {
             await new Promise(r => setTimeout(r, 1000 * attempt));
             continue;
@@ -653,14 +638,13 @@ async function getMasterServerList(appId, filter = {}) {
         }
 
         const data = await resp.json();
-        // 期望结构： { response: { servers: [ { addr: '1.2.3.4:27015', ... }, ... ] } }
         if (!data || !data.response) {
           log(`Steam Web API 返回格式异常，response 字段缺失，内容: ${JSON.stringify(data).slice(0,300)}`);
           return [];
         }
         const servers = data.response.servers || [];
         log(`Steam Web API 返回 ${servers.length} 台服务器（APPID ${appId}）`);
-        // 将 addr 转成 {ip, port}
+        
         const parsed = servers.map(s => {
           const addr = s.addr || s.addrString || s.ip || '';
           const addrStr = String(addr);
@@ -673,25 +657,20 @@ async function getMasterServerList(appId, filter = {}) {
       } catch (err) {
         lastErr = err;
         log(`调用 Steam Web API 失败（第 ${attempt} 次）: ${err && err.message ? err.message : err}`);
-        // 如果是中止/超时，短暂等待再重试
         await new Promise(r => setTimeout(r, 1000 * attempt));
       }
     }
-    // 如果重试穷尽仍然失败
+    
     if (lastErr) {
       log(`Steam Web API 调用最终失败: ${lastErr.message}`);
     }
-    // 如果到这里没有返回（比如 403），降级到 UDP 原方法（但可能会被 Valve 限制）
+    
     log('尝试降级：如果你仍然需要通过匿名 UDP master 查询，请确认 Valve 没有对该 APPID 限制。降级可能也会失败或被 rate-limited。');
   } else {
     log('未配置 STEAM_API_KEY，无法使用 Steam Web API 获取服务器列表；将尝试匿名 UDP 查询（可能已被 Valve 限制/拒绝）');
   }
 
-  // 如果没有 STEAM_API_KEY 或 Web API 失败，我们继续用原来的 UDP master 查询（可能会 timeout）
-  // 这里我们保留一个更稳健的 UDP 查询备选实现：使用本地 socket 循环读取直到结束（使用第三方库通常更稳定）
-  // 简化实现：调用原先 queryMasterServer（如果你安装了 steam-server-query 并允许 UDP）
   try {
-    // 尝试动态加载 steam-server-query（如果存在）
     const { queryMasterServer, REGIONS } = require('steam-server-query');
     const masterServerAddress = 'hl2master.steampowered.com:27011';
     const region = REGIONS.ALL;
@@ -744,10 +723,9 @@ async function updateServerIPs() {
   }
 }
 
-// 新增：获取本地日期字符串（修复时区问题）
+// 新增：获取本地日期字符串
 function getLocalDateString() {
   const now = new Date();
-  // 使用本地时间而不是UTC时间
   const year = now.getFullYear();
   const month = (now.getMonth() + 1).toString().padStart(2, '0');
   const day = now.getDate().toString().padStart(2, '0');
@@ -758,7 +736,6 @@ function getLocalDateString() {
 function checkAndResetHistoryIfNewDay() {
   const today = getLocalDateString();
   
-  // 如果是新的一天，重置lastHistoryDate并记录日志
   if (lastHistoryDate !== today) {
     log(`检测到新的一天: ${lastHistoryDate || '无记录'} -> ${today}`);
     lastHistoryDate = today;
@@ -768,29 +745,14 @@ function checkAndResetHistoryIfNewDay() {
   return false;
 }
 
-// 新增：更新服务器历史数据
+// 修改：更新服务器历史数据 - 修复历史数据保存问题
 async function updateServerHistory(serverInfo) {
   try {
-    const key = `${serverInfo.ip}:${serverInfo.port}`;
-    const today = getLocalDateString(); // 使用本地日期
+    const key = `${serverInfo.ip}:${server.port}`;
+    const today = getLocalDateString();
     
-    // 检查服务器标识是否改变
-    if (serverHistory[key]) {
-      const history = serverHistory[key];
-      if (history.name !== serverInfo.name || 
-          history.ip !== serverInfo.ip || 
-          history.port !== serverInfo.port) {
-        // 服务器标识已改变，重置历史数据
-        log(`服务器标识已改变，重置历史数据: ${key}`);
-        serverHistory[key] = {
-          name: serverInfo.name,
-          ip: serverInfo.ip,
-          port: serverInfo.port,
-          history: {}
-        };
-      }
-    } else {
-      // 新服务器，初始化历史数据
+    // 确保服务器历史数据存在
+    if (!serverHistory[key]) {
       serverHistory[key] = {
         name: serverInfo.name,
         ip: serverInfo.ip,
@@ -823,6 +785,74 @@ async function updateServerHistory(serverInfo) {
   }
 }
 
+// 新增：更新全局统计数据
+async function updateGlobalStats(serverInfo) {
+  try {
+    const today = getLocalDateString();
+    const appId = serverInfo.appId;
+    
+    if (!appId) return;
+    
+    // 确保游戏数据存在
+    if (!globalStats.games[appId]) {
+      globalStats.games[appId] = {
+        name: serverInfo.game_description,
+        totalServers: 0,
+        maxPlayers: 0,
+        currentPlayers: 0
+      };
+    }
+    
+    const gameData = globalStats.games[appId];
+    
+    // 更新游戏名称（如果发生变化）
+    if (serverInfo.game_description && serverInfo.game_description !== '-') {
+      gameData.name = serverInfo.game_description;
+    }
+    
+    // 更新总服务器数量（基于当前活动服务器）
+    gameData.totalServers = Array.from(serverMap.values())
+      .filter(server => server.appId === appId && server.lastData)
+      .length;
+    
+    // 更新当前在线人数
+    gameData.currentPlayers = (gameData.currentPlayers || 0) + (serverInfo.current_players || 0);
+    
+    // 确保历史数据存在
+    if (!globalStats.history[today]) {
+      globalStats.history[today] = {};
+    }
+    
+    // 更新今天的最大在线人数（取最大值）
+    if (!globalStats.history[today][appId] || serverInfo.current_players > globalStats.history[today][appId]) {
+      globalStats.history[today][appId] = serverInfo.current_players;
+    }
+    
+    // 更新游戏的历史最大在线人数
+    if (serverInfo.current_players > gameData.maxPlayers) {
+      gameData.maxPlayers = serverInfo.current_players;
+    }
+    
+    // 更新最后更新时间
+    globalStats.lastUpdated = new Date().toISOString();
+    
+    // 清理超过1年的历史数据
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    const oneYearAgoStr = getLocalDateString(oneYearAgo);
+    
+    Object.keys(globalStats.history).forEach(date => {
+      if (date < oneYearAgoStr) {
+        delete globalStats.history[date];
+      }
+    });
+    
+    await saveGlobalStats();
+  } catch (err) {
+    log(`更新全局统计数据失败: ${err.message}`);
+  }
+}
+
 async function updateServerInfo() {
   if (isUpdatingServerInfo) {
     log('上一次更新仍在进行中，跳过本次执行');
@@ -846,13 +876,21 @@ async function updateServerInfo() {
       const info = await queryServerInfo(ip, port);
       if (info) {
         const geo = await getGeoInfo(ip);
-        const data = { ...info, ...geo, offline: false };
+        const data = { 
+          ...info, 
+          ...geo, 
+          offline: false,
+          appId: server.appId // 确保appId被包含
+        };
         server.lastData = data;
         server.failureCount = 0;
         server.lastSuccessful = Date.now();
         
-        // 新增：更新服务器历史数据
+        // 更新服务器历史数据
         await updateServerHistory(data);
+        
+        // 新增：更新全局统计数据
+        await updateGlobalStats(data);
         
         return data;
       } else {
@@ -926,9 +964,9 @@ async function cleanServerList() {
   }
 }
 
-// 启动 HTTPS (并可选启动 HTTP 重定向) 的异步初始化
+// 启动服务器和服务
 async function startServersAndServices() {
-  // 检查 pfx 文件是否存在并读取
+  // 检查 pfx 文件
   try {
     await fs.access(pfxPath);
   } catch (err) {
@@ -948,17 +986,13 @@ async function startServersAndServices() {
 
   const httpsOptions = {
     pfx: pfxBuffer,
-    // 如果 passphrase 是 undefined 且 pfx 没有密码，Node 会自动处理；如果 pfx 有密码且未提供，会报错
     passphrase: pfxPassphrase
   };
 
-  // 创建 HTTPS server
   const httpsServer = https.createServer(httpsOptions, app);
 
-  // WebSocket 将挂载在 httpsServer 上
   wss = new WebSocket.Server({ server: httpsServer, path: '/ws' });
 
-  // WebSocket 连接处理（你原来的逻辑）
   wss.on('connection', (ws, req) => {
     clients.add(ws);
     log('新客户端已连接 (wss)');
@@ -980,11 +1014,9 @@ async function startServersAndServices() {
     });
   });
 
-  // 可选：启动 HTTP 服务，用于重定向到 HTTPS
   let httpServer = null;
   if (enableHttpRedirect) {
     httpServer = http.createServer((req, res) => {
-      // 构造跳转到 https 的 Location（保留 host，但替换端口为 httpsPort 如果必要）
       const hostHeader = req.headers.host || '';
       let hostOnly = hostHeader;
       if (hostHeader.includes(':')) {
@@ -1004,7 +1036,6 @@ async function startServersAndServices() {
     });
   }
 
-  // 启动监听
   httpsServer.listen(httpsPort, '0.0.0.0', () => {
     log(`HTTPS 服务器运行在 https://0.0.0.0:${httpsPort}`);
     log(`WebSocket 服务器运行在 wss://0.0.0.0:${httpsPort}/ws`);
@@ -1016,12 +1047,16 @@ async function startServersAndServices() {
     });
   }
 
-  // 以下保持原逻辑：初始化文件、定时任务等
+  // 初始化所有数据文件
   try {
-    await Promise.all([initializeGeoCacheFile(), initializeServerListFile(), initializeServerHistoryFile()]);
+    await Promise.all([
+      initializeGeoCacheFile(), 
+      initializeServerListFile(), 
+      initializeServerHistoryFile(),
+      initializeGlobalStatsFile() // 新增：初始化全局统计数据文件
+    ]);
   } catch (err) {
     log(`初始化文件失败: ${err.message}`);
-    // 继续也许可以运行，但提醒
   }
 
   // 初始化lastHistoryDate
@@ -1031,23 +1066,23 @@ async function startServersAndServices() {
   // 立即清理一次
   await cleanServerList();
 
-  // 使用解析后的 UpdateServerIPsTimeMs / UpdateServerInfoTimeMs
-  setInterval(updateServerIPs, UpdateServerIPsTimeMs); // 每 UpdateServerIPsTimeMs ms 更新一次
-  setInterval(updateServerInfo, UpdateServerInfoTimeMs); // 每 UpdateServerInfoTimeMs ms 更新一次
-  setInterval(cleanServerList, 3600000); // 每小时检查清理一次
+  // 设置定时任务
+  setInterval(updateServerIPs, UpdateServerIPsTimeMs);
+  setInterval(updateServerInfo, UpdateServerInfoTimeMs);
+  setInterval(cleanServerList, 3600000);
 
   // 立即触发一次
   updateServerIPs();
   updateServerInfo();
 }
 
-// express 路由（保持不变）
+// Express 路由
 app.get('/api/servers', async (req, res) => {
   log('收到 /api/servers 请求');
   res.json({ message: '服务器列表已通过 WebSocket 推送' });
 });
 
-// 新增：获取服务器历史数据的API端点
+// 获取服务器历史数据的API端点
 app.get('/api/server-history/:key', async (req, res) => {
   try {
     const key = req.params.key;
@@ -1061,9 +1096,18 @@ app.get('/api/server-history/:key', async (req, res) => {
   }
 });
 
+// 新增：获取全局统计数据的API端点
+app.get('/api/global-stats', async (req, res) => {
+  try {
+    res.json(globalStats);
+  } catch (err) {
+    res.status(500).json({ error: '获取全局统计数据失败' });
+  }
+});
+
 // 安全修复：阻止访问敏感文件
 app.use((req, res, next) => {
-  const blockedFiles = ['API_TOKEN.json', 'geo_cache.json', 'server_list.json', 'server_history.json', 'app_id.json', 'your_domain.pfx'];
+  const blockedFiles = ['API_TOKEN.json', 'geo_cache.json', 'server_list.json', 'server_history.json', 'global_stats.json', 'app_id.json', 'your_domain.pfx'];
   const requestedFile = path.basename(req.path);
   if (blockedFiles.includes(requestedFile)) {
     return res.status(403).send('Forbidden');

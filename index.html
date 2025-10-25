@@ -741,7 +741,7 @@
       </div>
       <div class="title-wrap">
         <h1 class="title">pvp.ink</h1>
-        <div class="subtitle">最好的龙类游戏服务器浏览器</div>
+        <div class="subtitle">最好的龙游服务器网站</div>
       </div>
       <div class="visitor-count" id="visitorCount">0 位访客</div>
     </header>
@@ -837,11 +837,11 @@
       </div>
     </div>
 
-    <div class="footer-links">
+    <!--<div class="footer-links">
       <div><a href="https://ipinfo.io" target="_blank" rel="noopener noreferrer">IP Data by ipinfo.io</a></div>
       <div><a href="https://developer.valvesoftware.com/wiki/Master_Server_Query_Protocol" target="_blank" rel="noopener noreferrer">Valve Master Server</a></div>
       <div><a href="https://developer.valvesoftware.com/wiki/Server_queries" target="_blank" rel="noopener noreferrer">A2S Server Queries</a></div>
-    </div>
+    </div>-->
   </div>
   <div class="modal" id="supportModal">
     <div class="modal-content">
@@ -1063,17 +1063,17 @@
                alt="${gameData.name}" class="game-icon"
                onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iOCIgZmlsbD0icmdiYSgyNTUsIDI1NSwgMjU1LCAwLjAyKSIvPgo8dGV4dCB4PSIzMiIgeT0iMzUiIGZvbnQtZmFtaWx5PSJJbnRlciwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMiIgZmlsbD0icmdiYSgyMTUsIDIyNSwgMjM0LCAwLjYpIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5HYW1lPC90ZXh0Pgo8L3N2Zz4K'">
           <div class="game-name">${gameData.name}</div>
-          <div class="game-appid">AppID: ${appId}</div>
+          <div class="game-appid">${appId}</div>
           <div class="stat-row">
-            <span class="stat-label">总服务器数量:</span>
+            <span class="stat-label">总服务器数量</span>
             <span class="stat-value">${gameData.totalServers || 0}</span>
           </div>
           <div class="stat-row">
-            <span class="stat-label">历史最大在线:</span>
+            <span class="stat-label">历史在线记录</span>
             <span class="stat-value">${gameData.maxPlayers || 0}</span>
           </div>
           <div class="stat-row">
-            <span class="stat-label">当前在线:</span>
+            <span class="stat-label">当前在线玩家</span>
             <span class="stat-value">${gameData.currentPlayers || 0}</span>
           </div>
         `;
