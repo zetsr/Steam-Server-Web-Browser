@@ -67,6 +67,24 @@
     .refresh-btn{ background: linear-gradient(180deg, rgba(110,231,183,0.06), rgba(110,231,183,0.02)); border:1px solid rgba(110,231,183,0.12); color:var(--text); padding:10px 18px; border-radius:10px; font-weight:700; }
     .refresh-btn:disabled{ opacity:0.5; transform:none; cursor:not-allowed; box-shadow:none; }
 
+    .search-input {
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.008));
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.03);
+      font-size: 13px;
+      min-width: 200px;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.5);
+      transition: transform .14s var(--ease), box-shadow .14s var(--ease);
+    }
+    
+    .search-input:focus {
+      outline: none;
+      border-color: rgba(110,231,183,0.12);
+      box-shadow: 0 12px 30px rgba(2,6,23,0.65);
+    }
+
     .dropdown, .multiselect{ position:relative; display:inline-block; min-width:150px; }
     .dropdown-btn, .multiselect-btn{ width:100%; text-align:left; padding:10px 14px; border-radius:10px; background:transparent; color:var(--text); border:1px solid rgba(255,255,255,0.03); cursor:pointer; font-weight:600; font-size:13px; }
     .dropdown-btn::after, .multiselect-btn::after { content: '▾'; float:right; opacity:0.8; font-size:12px; transition: transform .18s var(--ease); }
@@ -255,6 +273,45 @@
       background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.003)); 
       border:1px solid rgba(255,255,255,0.02); 
       transition: overflow-y 0.3s ease; /* 平滑过渡效果 */
+      position: relative;
+      min-height: 400px; /* 确保有足够高度显示加载动画 */
+    }
+    
+    /* 加载动画样式 */
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(7, 8, 10, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      border-radius: 12px;
+      backdrop-filter: blur(4px);
+    }
+    
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top: 3px solid var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .loading-text {
+      color: var(--text);
+      margin-top: 16px;
+      font-size: 14px;
+      text-align: center;
     }
     
     /* 添加一个类用于在渲染期间锁定高度 */
@@ -339,6 +396,48 @@
     .footer-links a{ color:var(--muted); text-decoration:none; border-bottom:1px dashed rgba(255,255,255,0.02); padding-bottom:2px; }
     .footer-links a:hover{ color:var(--text); border-bottom-color: rgba(255,255,255,0.04); }
 
+    /* 分页样式 */
+    .pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    
+    .page-btn {
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.008));
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.03);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s var(--ease);
+      min-width: 40px;
+      text-align: center;
+    }
+    
+    .page-btn:hover:not(.disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(2,6,23,0.6);
+      border-color: rgba(110,231,183,0.12);
+    }
+    
+    .page-btn.active {
+      background: linear-gradient(180deg, rgba(110,231,183,0.06), rgba(110,231,183,0.02));
+      border-color: rgba(110,231,183,0.12);
+      color: var(--accent);
+    }
+    
+    .page-btn.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
     .tooltip {
       position: absolute;
       background: rgba(14,16,18,0.96);
@@ -366,6 +465,10 @@
       .app { width: calc(100% - 24px); padding:12px; margin:12px auto; max-width:none; }
       .controls { flex-direction:column; align-items:stretch; gap:10px; }
       .dropdown, .multiselect { width:100%; }
+      .search-input {
+        width: 100%;
+        min-width: auto;
+      }
       .visitor-count { 
         position: static; 
         margin-left: auto; 
@@ -460,6 +563,14 @@
       .history-chart-container {
         height: 200px;
       }
+      .pagination {
+        gap: 4px;
+      }
+      .page-btn {
+        padding: 6px 8px;
+        font-size: 12px;
+        min-width: 32px;
+      }
     }
 
     .multiselect-content::-webkit-scrollbar, .dropdown-content::-webkit-scrollbar { height:10px; width:10px; }
@@ -484,7 +595,8 @@
     </header>
 
     <div class="controls" role="region" aria-label="Controls">
-      <button class="btn refresh-btn" onclick="refreshServers()" title="手动请求服务器更新其状态">刷新列表</button>
+      <!-- 移除刷新按钮，替换为搜索框 -->
+      <input type="text" class="search-input" id="serverSearch" placeholder="搜索服务器名称" title="输入服务器名称进行筛选">
 
       <div class="multiselect" id="regionFilter">
         <button class="multiselect-btn" onclick="toggleRegionMultiselect()">选择地区</button>
@@ -516,6 +628,14 @@
     </div>
 
     <div class="table-container" aria-label="Server Table">
+      <!-- 加载动画 -->
+      <div class="loading-overlay" id="loadingOverlay">
+        <div>
+          <div class="loading-spinner"></div>
+          <div class="loading-text">正在加载服务器列表...</div>
+        </div>
+      </div>
+      
       <table id="serverTable" role="table" aria-describedby="status">
         <thead>
           <tr>
@@ -534,6 +654,9 @@
         <tbody id="serverList"></tbody>
       </table>
     </div>
+
+    <!-- 分页控件 -->
+    <div class="pagination" id="paginationContainer"></div>
 
     <div class="footer-links">
       <div><a href="https://ipinfo.io" target="_blank" rel="noopener noreferrer">IP Data by ipinfo.io</a></div>
@@ -555,7 +678,7 @@
       <button class="close-btn" onclick="hideHistoryModal()">×</button>
       <div class="history-header">
         <h2 class="history-title" id="historyServerName">服务器名称</h2>
-        <p class="history-subtitle" id="historyServerInfo">IP:端口</p>
+        <p class="history-subtitle" id="historyServerInfo">IP:端口 | 服务商: -</p>
       </div>
       <div class="history-chart-container">
         <canvas id="historyChart"></canvas>
@@ -594,6 +717,9 @@
     const lastUpdatedDiv = document.querySelector('.last-updated');
     const visitorCountDiv = document.getElementById('visitorCount');
     const tableContainer = document.querySelector('.table-container');
+    const searchInput = document.getElementById('serverSearch');
+    const paginationContainer = document.getElementById('paginationContainer');
+    const loadingOverlay = document.getElementById('loadingOverlay');
 
     // 新增：历史数据相关元素
     const historyModal = document.getElementById('historyModal');
@@ -620,6 +746,17 @@
     let isRendering = false; // A flag to prevent concurrent rendering
     let scrollHideTimer = null;
 
+    // 新增：分页和搜索相关变量
+    let currentPage = urlParams.page || 1;
+    let itemsPerPage = 20;
+    let totalPages = 1;
+    let searchFilter = urlParams.filter || '';
+
+    // 新增：加载状态管理
+    let isLoading = true;
+    let loadingStartTime = null;
+    let minLoadingTime = 1000; // 最小加载时间1秒
+
     let ws = null;
     let reconnectDelay = 5000;
     const maxReconnectDelay = 60000;
@@ -638,7 +775,9 @@
         ? params.get('regions').split(',').map(decodeURIComponent).filter(r => r && /^[A-Z]{2}$/.test(r))
         : [];
       const sort = params.get('sort') || 'players';
-      return { games, regions, sort };
+      const filter = params.get('filter') || '';
+      const page = parseInt(params.get('page')) || 1;
+      return { games, regions, sort, filter, page };
     }
 
     function updateURL() {
@@ -648,6 +787,8 @@
       if (selectedGames.length > 0) params.set('games', selectedGames.map(encodeURIComponent).join(','));
       if (selectedRegions.length > 0) params.set('regions', selectedRegions.join(','));
       params.set('sort', currentSort);
+      if (searchFilter) params.set('filter', searchFilter);
+      if (currentPage > 1) params.set('page', currentPage);
       window.history.replaceState({}, document.title, `${window.location.pathname}?${params.toString()}`);
       urlParams = parseURLParams();
     }
@@ -670,6 +811,26 @@
       if (!reconnectCountdownIntervalId) {
         statusDiv.textContent = message;
       }
+    }
+
+    // 新增：显示加载动画
+    function showLoading() {
+      if (!isLoading) {
+        isLoading = true;
+        loadingStartTime = Date.now();
+        loadingOverlay.style.display = 'flex';
+      }
+    }
+
+    // 新增：隐藏加载动画（确保至少显示1秒）
+    function hideLoading() {
+      const elapsed = Date.now() - loadingStartTime;
+      const remaining = Math.max(0, minLoadingTime - elapsed);
+      
+      setTimeout(() => {
+        isLoading = false;
+        loadingOverlay.style.display = 'none';
+      }, remaining);
     }
 
     function loadCachedData() {
@@ -776,6 +937,10 @@
         updateStatus();
         updateLastUpdateTime();
         sessionStorage.setItem('serverData', JSON.stringify(Array.from(serverData.values())));
+        // 当有数据更新时，确保加载动画至少显示1秒
+        if (isLoading) {
+          hideLoading();
+        }
       }, 500);
       
       ws.addEventListener('message', debouncedFullUpdate);
@@ -850,6 +1015,10 @@
       updateRegionFilterButtonText();
       currentSort = ['players', 'name', 'latency'].includes(urlParams.sort) ? urlParams.sort : 'players';
       sortBtn.textContent = {'players': '按人数排序', 'name': '按名称排序', 'latency': '按延迟排序'}[currentSort];
+      
+      // 设置搜索框内容
+      searchFilter = urlParams.filter || '';
+      searchInput.value = searchFilter;
     }
 
     function applyCheckboxSelection(optionsContainer, selectedValues) {
@@ -867,6 +1036,7 @@
         checkbox.checked = selectedItems.includes(item);
         checkbox.addEventListener('change', () => {
           // BUG FIX: When filters change, immediately call the render function
+          currentPage = 1; // 重置到第一页
           debouncedFilterAndRender();
           if (isRegion) updateRegionFilterButtonText();
           else updateGameFilterButtonText();
@@ -996,7 +1166,7 @@
     function showHistoryModal(server) {
       const key = `${server.ip}:${server.port}`;
       historyServerName.textContent = server.name || '未知服务器';
-      historyServerInfo.textContent = `${server.ip}:${server.port}`;
+      historyServerInfo.textContent = `IP: ${server.ip}:${server.port} | 服务商: ${server.isp || '-'}`;
       
       // 显示加载中状态
       historyTableBody.innerHTML = '<tr><td colspan="2" style="text-align: center;">加载中...</td></tr>';
@@ -1143,6 +1313,121 @@
       });
     }
 
+    // 新增：分页功能
+    function updatePagination(totalItems, currentPage, itemsPerPage) {
+      totalPages = Math.ceil(totalItems / itemsPerPage);
+      if (currentPage > totalPages) {
+        currentPage = totalPages || 1;
+      }
+      
+      paginationContainer.innerHTML = '';
+      
+      if (totalPages <= 1) return;
+      
+      // 上一页按钮
+      const prevBtn = createPageBtn('上一页', currentPage > 1 ? currentPage - 1 : 1, currentPage === 1);
+      paginationContainer.appendChild(prevBtn);
+      
+      // 页码按钮
+      const pages = [];
+      
+      // 第X-2页
+      if (currentPage - 2 >= 1) {
+        pages.push(currentPage - 2);
+      }
+      
+      // 第X-1页
+      if (currentPage - 1 >= 1) {
+        pages.push(currentPage - 1);
+      }
+      
+      // 当前页
+      pages.push(currentPage);
+      
+      // 第X+1页
+      if (currentPage + 1 <= totalPages) {
+        pages.push(currentPage + 1);
+      }
+      
+      // 第X+2页
+      if (currentPage + 2 <= totalPages) {
+        pages.push(currentPage + 2);
+      }
+      
+      // 去重并排序
+      const uniquePages = [...new Set(pages)].sort((a, b) => a - b);
+      
+      uniquePages.forEach(page => {
+        const pageBtn = createPageBtn(page, page, page === currentPage);
+        paginationContainer.appendChild(pageBtn);
+      });
+      
+      // 下一页按钮
+      const nextBtn = createPageBtn('下一页', currentPage < totalPages ? currentPage + 1 : totalPages, currentPage === totalPages);
+      paginationContainer.appendChild(nextBtn);
+    }
+    
+    function createPageBtn(text, page, disabled = false) {
+      const btn = document.createElement('button');
+      btn.className = 'page-btn';
+      btn.textContent = text;
+      
+      if (disabled) {
+        btn.classList.add('disabled');
+      } else {
+        btn.addEventListener('click', () => {
+          currentPage = page;
+          debouncedFilterAndRender();
+          updateURL();
+        });
+      }
+      
+      if (page === currentPage) {
+        btn.classList.add('active');
+      }
+      
+      return btn;
+    }
+    
+    // 新增：搜索功能
+    function setupSearch() {
+      searchInput.addEventListener('input', debounce(() => {
+        searchFilter = searchInput.value.trim();
+        currentPage = 1; // 搜索时重置到第一页
+        debouncedFilterAndRender();
+        updateURL();
+      }, 300));
+    }
+    
+    // 新增：筛选服务器（包含搜索）
+    function filterServers(servers) {
+      const selectedGames = getSelectedGames();
+      const selectedRegions = getSelectedRegions();
+      
+      return servers.filter(server => {
+        // 游戏筛选
+        if (selectedGames.length > 0 && !selectedGames.includes(server.game_description || '-')) {
+          return false;
+        }
+        
+        // 地区筛选
+        if (selectedRegions.length > 0 && !selectedRegions.includes(server.country || 'unknown')) {
+          return false;
+        }
+        
+        // 搜索筛选
+        if (searchFilter) {
+          const serverName = (server.name || '').toLowerCase();
+          const searchTerm = searchFilter.toLowerCase();
+          if (!serverName.includes(searchTerm)) {
+            return false;
+          }
+        }
+        
+        return true;
+      });
+    }
+
     function debounce(func, wait) {
       let timeout;
       return function (...args) {
@@ -1158,13 +1443,20 @@
     function filterAndRenderTable() {
       if (isRendering) return; // Prevent re-entry if already rendering
 
-      const selectedGames = getSelectedGames();
-      const selectedRegions = getSelectedRegions();
-      let serversToRender = Array.from(serverData.values()).filter(server =>
-        (selectedGames.length === 0 || selectedGames.includes(server.game_description || '-')) &&
-        (selectedRegions.length === 0 || selectedRegions.includes(server.country || 'unknown'))
-      );
+      let serversToRender = Array.from(serverData.values());
+      
+      // 应用筛选（游戏、地区、搜索）
+      serversToRender = filterServers(serversToRender);
+      
       sortServers(serversToRender);
+
+      // 更新分页
+      updatePagination(serversToRender.length, currentPage, itemsPerPage);
+      
+      // 应用分页
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      serversToRender = serversToRender.slice(startIndex, endIndex);
 
       // 修复：在渲染前锁定表格容器高度
       if (tableContainer) {
@@ -1435,10 +1727,12 @@
     }
 
     window.onload = () => {
+      showLoading(); // 显示加载动画
       urlParams = parseURLParams();
       loadCachedData();
       startUpdateTimer();
       connectWebSocket();
+      setupSearch(); // 初始化搜索功能
 
       document.addEventListener('click', (e) => {
         if (currentTooltip && !e.target.closest('.name')) {
