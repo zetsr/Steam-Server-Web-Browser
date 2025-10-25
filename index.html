@@ -7,6 +7,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Great+Vibes&display=swap" rel="stylesheet">
   <!-- 引入Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- 引入Chart.js缩放插件 -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.0/dist/chartjs-plugin-zoom.min.js"></script>
   <style>
     :root{
       --bg:#07080a;
@@ -56,6 +58,36 @@
       font-size: 13px; 
       font-weight: 600; 
       box-shadow: 0 4px 12px rgba(2,6,23,0.4); 
+    }
+
+    /* 选项卡样式 */
+    .tab-container {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    
+    .tab-btn {
+      padding: 10px 20px;
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.008));
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.03);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s var(--ease);
+    }
+    
+    .tab-btn.active {
+      background: linear-gradient(180deg, rgba(110,231,183,0.06), rgba(110,231,183,0.02));
+      border-color: rgba(110,231,183,0.12);
+      color: var(--accent);
+    }
+    
+    .tab-btn:hover:not(.active) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(2,6,23,0.6);
     }
 
     .controls{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px; border-radius:12px; background: linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.008)); border:1px solid var(--glass-border); box-shadow: inset 0 1px 0 rgba(255,255,255,0.02); margin-bottom:16px; }
@@ -263,6 +295,120 @@
       color: var(--muted);
       padding: 40px 0;
       font-style: italic;
+    }
+
+    /* 全球统计数据样式 */
+    .global-stats-container {
+      display: none;
+    }
+    
+    .global-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .game-stat-card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.003));
+      border: 1px solid rgba(255,255,255,0.02);
+      border-radius: 12px;
+      padding: 20px;
+      transition: all 0.3s var(--ease);
+    }
+    
+    .game-stat-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 30px rgba(2,6,23,0.6);
+      border-color: rgba(110,231,183,0.1);
+    }
+    
+    .game-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 8px;
+      object-fit: cover;
+      margin-bottom: 12px;
+    }
+    
+    .game-name {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    
+    .game-appid {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+    
+    .stat-label {
+      color: var(--muted);
+    }
+    
+    .stat-value {
+      color: var(--text);
+      font-weight: 600;
+    }
+    
+    .global-chart-container {
+      margin-top: 30px;
+      position: relative;
+      height: 400px;
+    }
+    
+    .time-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+      justify-content: center;
+    }
+    
+    .time-btn {
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.008));
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.03);
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s var(--ease);
+    }
+    
+    .time-btn.active {
+      background: linear-gradient(180deg, rgba(110,231,183,0.06), rgba(110,231,183,0.02));
+      border-color: rgba(110,231,183,0.12);
+      color: var(--accent);
+    }
+    
+    .chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin-top: 15px;
+      justify-content: center;
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+    }
+    
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
     }
 
     .table-container{ 
@@ -571,6 +717,12 @@
         font-size: 12px;
         min-width: 32px;
       }
+      .global-stats-grid {
+        grid-template-columns: 1fr;
+      }
+      .time-controls {
+        flex-wrap: wrap;
+      }
     }
 
     .multiselect-content::-webkit-scrollbar, .dropdown-content::-webkit-scrollbar { height:10px; width:10px; }
@@ -588,75 +740,102 @@
         <svg width="44" height="44" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="5" fill="rgba(255,255,255,0.02)"/><path d="M7 12h10M7 8h10M7 16h6" stroke="rgba(110,231,183,0.9)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
       <div class="title-wrap">
-        <h1 class="title">github.com/zetsr/Steam-Server-Web-Browser</h1>
+        <h1 class="title">pvp.ink</h1>
         <div class="subtitle">最好的龙类游戏服务器浏览器</div>
       </div>
       <div class="visitor-count" id="visitorCount">0 位访客</div>
     </header>
 
-    <div class="controls" role="region" aria-label="Controls">
-      <!-- 移除刷新按钮，替换为搜索框 -->
-      <input type="text" class="search-input" id="serverSearch" placeholder="搜索服务器名称" title="输入服务器名称进行筛选">
-
-      <div class="multiselect" id="regionFilter">
-        <button class="multiselect-btn" onclick="toggleRegionMultiselect()">选择地区</button>
-        <div class="multiselect-content" id="regionFilterOptions" aria-hidden="true"></div>
-      </div>
-
-      <div class="multiselect" id="gameFilter">
-        <button class="multiselect-btn" onclick="toggleGameMultiselect()">选择游戏</button>
-        <div class="multiselect-content" id="gameFilterOptions" aria-hidden="true"></div>
-      </div>
-
-      <div class="dropdown" id="sortDropdown">
-        <button class="dropdown-btn" onclick="toggleDropdown()">按人数排序</button>
-        <div class="dropdown-content" id="sortOptions" role="menu" aria-hidden="true">
-          <div onclick="selectSort('players')" role="menuitem">按人数排序</div>
-          <div onclick="selectSort('name')" role="menuitem">按名称排序</div>
-          <div onclick="selectSort('latency')" role="menuitem">按延迟排序</div>
-        </div>
-      </div>
+    <!-- 选项卡 -->
+    <div class="tab-container">
+      <button class="tab-btn active" id="homeTab" onclick="switchTab('home')">主页</button>
+      <button class="tab-btn" id="globalStatsTab" onclick="switchTab('globalStats')">全球统计数据</button>
     </div>
 
-    <div class="status-container" role="status" aria-live="polite">
-      <div class="status" id="status">正在初始化...</div>
-      <div class="last-updated hidden">最后更新于 <span id="updateTime">0</span> 秒之前</div>
-      <div class="powered-by-wrap">
-        <div class="powered-by"><a href="https://github.com/zetsr/Steam-Server-Web-Browser" target="_blank" rel="noopener noreferrer">Powered by zetsr</a></div>
-        <a class="support-link" onclick="showSupportModal()">支持一下♥</a>
+    <!-- 主页内容 -->
+    <div id="homeContent">
+      <div class="controls" role="region" aria-label="Controls">
+        <!-- 移除刷新按钮，替换为搜索框 -->
+        <input type="text" class="search-input" id="serverSearch" placeholder="搜索服务器名称" title="输入服务器名称进行筛选">
+
+        <div class="multiselect" id="regionFilter">
+          <button class="multiselect-btn" onclick="toggleRegionMultiselect()">选择地区</button>
+          <div class="multiselect-content" id="regionFilterOptions" aria-hidden="true"></div>
+        </div>
+
+        <div class="multiselect" id="gameFilter">
+          <button class="multiselect-btn" onclick="toggleGameMultiselect()">选择游戏</button>
+          <div class="multiselect-content" id="gameFilterOptions" aria-hidden="true"></div>
+        </div>
+
+        <div class="dropdown" id="sortDropdown">
+          <button class="dropdown-btn" onclick="toggleDropdown()">按人数排序</button>
+          <div class="dropdown-content" id="sortOptions" role="menu" aria-hidden="true">
+            <div onclick="selectSort('players')" role="menuitem">按人数排序</div>
+            <div onclick="selectSort('name')" role="menuitem">按名称排序</div>
+            <div onclick="selectSort('latency')" role="menuitem">按延迟排序</div>
+          </div>
+        </div>
       </div>
+
+      <div class="status-container" role="status" aria-live="polite">
+        <div class="status" id="status">正在初始化...</div>
+        <div class="last-updated hidden">最后更新于 <span id="updateTime">0</span> 秒之前</div>
+        <div class="powered-by-wrap">
+          <div class="powered-by"><a href="https://github.com/zetsr/Steam-Server-Web-Browser" target="_blank" rel="noopener noreferrer">Powered by zetsr</a></div>
+          <a class="support-link" onclick="showSupportModal()">支持一下♥</a>
+        </div>
+      </div>
+
+      <div class="table-container" aria-label="Server Table">
+        <!-- 加载动画 -->
+        <div class="loading-overlay" id="loadingOverlay">
+          <div>
+            <div class="loading-spinner"></div>
+            <div class="loading-text">正在加载服务器列表...</div>
+          </div>
+        </div>
+        
+        <table id="serverTable" role="table" aria-describedby="status">
+          <thead>
+            <tr>
+              <th class="country">国家</th>
+              <th class="game">游戏名称</th>
+              <th class="name">服务器名称</th>
+              <th class="ip">服务器IP</th>
+              <th class="isp">服务商</th>
+              <th class="os">操作系统</th>
+              <th class="players">在线玩家</th>
+              <th class="map">地图</th>
+              <th class="version">版本</th>
+              <th class="latency">延迟 (ms)</th>
+            </tr>
+          </thead>
+          <tbody id="serverList"></tbody>
+        </table>
+      </div>
+
+      <!-- 分页控件 -->
+      <div class="pagination" id="paginationContainer"></div>
     </div>
 
-    <div class="table-container" aria-label="Server Table">
-      <!-- 加载动画 -->
-      <div class="loading-overlay" id="loadingOverlay">
-        <div>
-          <div class="loading-spinner"></div>
-          <div class="loading-text">正在加载服务器列表...</div>
-        </div>
+    <!-- 全球统计数据内容 -->
+    <div class="global-stats-container" id="globalStatsContent">
+      <div class="global-stats-grid" id="globalStatsGrid">
+        <!-- 游戏统计数据卡片将通过JavaScript动态生成 -->
       </div>
       
-      <table id="serverTable" role="table" aria-describedby="status">
-        <thead>
-          <tr>
-            <th class="country">国家</th>
-            <th class="game">游戏名称</th>
-            <th class="name">服务器名称</th>
-            <th class="ip">服务器IP</th>
-            <th class="isp">服务商</th>
-            <th class="os">操作系统</th>
-            <th class="players">在线玩家</th>
-            <th class="map">地图</th>
-            <th class="version">版本</th>
-            <th class="latency">延迟 (ms)</th>
-          </tr>
-        </thead>
-        <tbody id="serverList"></tbody>
-      </table>
+      <div class="global-chart-container">
+        <div class="time-controls">
+          <button class="time-btn active" onclick="changeGlobalTimeRange('day')">日</button>
+          <button class="time-btn" onclick="changeGlobalTimeRange('week')">周</button>
+          <button class="time-btn" onclick="changeGlobalTimeRange('month')">月</button>
+          <button class="time-btn" onclick="changeGlobalTimeRange('year')">年</button>
+        </div>
+        <canvas id="globalStatsChart"></canvas>
+        <div class="chart-legend" id="globalChartLegend"></div>
+      </div>
     </div>
-
-    <!-- 分页控件 -->
-    <div class="pagination" id="paginationContainer"></div>
 
     <div class="footer-links">
       <div><a href="https://ipinfo.io" target="_blank" rel="noopener noreferrer">IP Data by ipinfo.io</a></div>
@@ -680,6 +859,14 @@
         <h2 class="history-title" id="historyServerName">服务器名称</h2>
         <p class="history-subtitle" id="historyServerInfo">IP:端口 | 服务商: -</p>
       </div>
+      
+      <div class="time-controls">
+        <button class="time-btn active" onclick="changeHistoryTimeRange('day')">日</button>
+        <button class="time-btn" onclick="changeHistoryTimeRange('week')">周</button>
+        <button class="time-btn" onclick="changeHistoryTimeRange('month')">月</button>
+        <button class="time-btn" onclick="changeHistoryTimeRange('year')">年</button>
+      </div>
+      
       <div class="history-chart-container">
         <canvas id="historyChart"></canvas>
       </div>
@@ -696,13 +883,16 @@
         </table>
       </div>
       <div class="no-data" id="historyNoData" style="display: none;">
-        暂无最近30天的历史数据
+        暂无历史数据
       </div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script>
+    // 注册Chart.js缩放插件
+    Chart.register(ChartZoom);
+
     const tbody = document.getElementById('serverList');
     const statusDiv = document.getElementById('status');
     const gameFilter = document.getElementById('gameFilter');
@@ -720,6 +910,11 @@
     const searchInput = document.getElementById('serverSearch');
     const paginationContainer = document.getElementById('paginationContainer');
     const loadingOverlay = document.getElementById('loadingOverlay');
+    const homeContent = document.getElementById('homeContent');
+    const globalStatsContent = document.getElementById('globalStatsContent');
+    const globalStatsGrid = document.getElementById('globalStatsGrid');
+    const homeTab = document.getElementById('homeTab');
+    const globalStatsTab = document.getElementById('globalStatsTab');
 
     // 新增：历史数据相关元素
     const historyModal = document.getElementById('historyModal');
@@ -729,6 +924,10 @@
     const historyTableBody = document.getElementById('historyTableBody');
     const historyNoData = document.getElementById('historyNoData');
     const historyTableContainer = document.getElementById('historyTableContainer');
+
+    // 新增：全局统计数据相关元素
+    const globalStatsChart = document.getElementById('globalStatsChart');
+    const globalChartLegend = document.getElementById('globalChartLegend');
 
     let serverData = new Map();
     let uniqueGames = new Set();
@@ -757,14 +956,24 @@
     let loadingStartTime = null;
     let minLoadingTime = 1000; // 最小加载时间1秒
 
+    // 新增：选项卡状态
+    let currentTab = 'home';
+
+    // 新增：图表相关变量
+    let historyChartInstance = null;
+    let globalStatsChartInstance = null;
+    let currentHistoryTimeRange = 'day';
+    let currentGlobalTimeRange = 'day';
+    let currentServerHistoryData = null;
+
+    // 新增：全局统计数据
+    let globalStatsData = null;
+
     let ws = null;
     let reconnectDelay = 5000;
     const maxReconnectDelay = 60000;
     let reconnectTimeoutId = null;
     let reconnectCountdownIntervalId = null;
-
-    // 新增：Chart.js 实例
-    let historyChartInstance = null;
 
     function parseURLParams() {
       const params = new URLSearchParams(window.location.search);
@@ -793,6 +1002,498 @@
       urlParams = parseURLParams();
     }
 
+    // 新增：选项卡切换功能
+    function switchTab(tabName) {
+      currentTab = tabName;
+      
+      // 更新选项卡按钮状态
+      homeTab.classList.toggle('active', tabName === 'home');
+      globalStatsTab.classList.toggle('active', tabName === 'globalStats');
+      
+      // 显示/隐藏内容
+      homeContent.style.display = tabName === 'home' ? 'block' : 'none';
+      globalStatsContent.style.display = tabName === 'globalStats' ? 'block' : 'none';
+      
+      if (tabName === 'globalStats') {
+        loadGlobalStats();
+      }
+    }
+
+    // 新增：加载全球统计数据
+    function loadGlobalStats() {
+      if (!globalStatsData) {
+        showLoading();
+        axios.get('/api/global-stats')
+          .then(response => {
+            globalStatsData = response.data;
+            renderGlobalStats();
+            hideLoading();
+          })
+          .catch(error => {
+            console.error('获取全球统计数据失败:', error);
+            hideLoading();
+          });
+      } else {
+        renderGlobalStats();
+      }
+    }
+
+    // 新增：渲染全球统计数据
+    function renderGlobalStats() {
+      if (!globalStatsData) return;
+      
+      // 渲染游戏统计卡片
+      renderGameStatsCards();
+      
+      // 渲染全球统计图表
+      renderGlobalStatsChart();
+    }
+
+    // 新增：渲染游戏统计卡片
+    function renderGameStatsCards() {
+      globalStatsGrid.innerHTML = '';
+      
+      Object.keys(globalStatsData.games).forEach(appId => {
+        const gameData = globalStatsData.games[appId];
+        const card = document.createElement('div');
+        card.className = 'game-stat-card';
+        
+        card.innerHTML = `
+          <img src="https://cdn.akamai.steamstatic.com/steam/apps/${appId}/capsule_184x69.jpg" 
+               alt="${gameData.name}" class="game-icon"
+               onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iOCIgZmlsbD0icmdiYSgyNTUsIDI1NSwgMjU1LCAwLjAyKSIvPgo8dGV4dCB4PSIzMiIgeT0iMzUiIGZvbnQtZmFtaWx5PSJJbnRlciwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMiIgZmlsbD0icmdiYSgyMTUsIDIyNSwgMjM0LCAwLjYpIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5HYW1lPC90ZXh0Pgo8L3N2Zz4K'">
+          <div class="game-name">${gameData.name}</div>
+          <div class="game-appid">AppID: ${appId}</div>
+          <div class="stat-row">
+            <span class="stat-label">总服务器数量:</span>
+            <span class="stat-value">${gameData.totalServers || 0}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">历史最大在线:</span>
+            <span class="stat-value">${gameData.maxPlayers || 0}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">当前在线:</span>
+            <span class="stat-value">${gameData.currentPlayers || 0}</span>
+          </div>
+        `;
+        
+        globalStatsGrid.appendChild(card);
+      });
+    }
+
+    // 新增：渲染全球统计图表
+    function renderGlobalStatsChart() {
+      const ctx = globalStatsChart.getContext('2d');
+      
+      // 销毁之前的图表实例
+      if (globalStatsChartInstance) {
+        globalStatsChartInstance.destroy();
+      }
+      
+      // 准备数据
+      const aggregatedData = aggregateGlobalDataByTimeRange(globalStatsData.history, currentGlobalTimeRange);
+      const labels = Object.keys(aggregatedData).sort();
+      const datasets = [];
+      
+      // 为每个游戏创建数据集
+      const colors = [
+        'rgba(110, 231, 183, 0.8)',
+        'rgba(120, 126, 255, 0.8)',
+        'rgba(255, 152, 0, 0.8)',
+        'rgba(156, 39, 176, 0.8)',
+        'rgba(33, 150, 243, 0.8)',
+        'rgba(244, 67, 54, 0.8)',
+        'rgba(76, 175, 80, 0.8)'
+      ];
+      
+      let colorIndex = 0;
+      Object.keys(globalStatsData.games).forEach(appId => {
+        const gameData = globalStatsData.games[appId];
+        const data = labels.map(label => aggregatedData[label]?.[appId] || 0);
+        
+        datasets.push({
+          label: gameData.name,
+          data: data,
+          borderColor: colors[colorIndex % colors.length],
+          backgroundColor: colors[colorIndex % colors.length].replace('0.8', '0.1'),
+          tension: 0.3,
+          fill: true,
+          pointBackgroundColor: colors[colorIndex % colors.length],
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5
+        });
+        
+        colorIndex++;
+      });
+      
+      // 创建图例
+      renderGlobalChartLegend(datasets);
+      
+      globalStatsChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels.map(label => formatDateByTimeRange(label, currentGlobalTimeRange)),
+          datasets: datasets
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              backgroundColor: 'rgba(14, 16, 18, 0.9)',
+              titleColor: 'rgba(215, 225, 234, 0.9)',
+              bodyColor: 'rgba(215, 225, 234, 0.8)',
+              borderColor: 'rgba(255, 255, 255, 0.1)',
+              borderWidth: 1
+            },
+            zoom: {
+              zoom: {
+                wheel: {
+                  enabled: true,
+                },
+                pinch: {
+                  enabled: true
+                },
+                mode: 'x',
+              },
+              pan: {
+                enabled: true,
+                mode: 'x',
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: {
+                color: 'rgba(255, 255, 255, 0.05)'
+              },
+              ticks: {
+                color: 'rgba(215, 225, 234, 0.7)'
+              }
+            },
+            y: {
+              beginAtZero: true,
+              grid: {
+                color: 'rgba(255, 255, 255, 0.05)'
+              },
+              ticks: {
+                color: 'rgba(215, 225, 234, 0.7)'
+              }
+            }
+          },
+          interaction: {
+            mode: 'nearest',
+            axis: 'x',
+            intersect: false
+          }
+        }
+      });
+    }
+
+    // 新增：渲染全球图表图例
+    function renderGlobalChartLegend(datasets) {
+      globalChartLegend.innerHTML = '';
+      
+      datasets.forEach(dataset => {
+        const legendItem = document.createElement('div');
+        legendItem.className = 'legend-item';
+        legendItem.innerHTML = `
+          <div class="legend-color" style="background-color: ${dataset.borderColor}"></div>
+          <span>${dataset.label}</span>
+        `;
+        globalChartLegend.appendChild(legendItem);
+      });
+    }
+
+    // 新增：按时间范围聚合全局数据
+    function aggregateGlobalDataByTimeRange(historyData, timeRange) {
+      const aggregated = {};
+      
+      Object.keys(historyData).forEach(date => {
+        const timeKey = getTimeKey(date, timeRange);
+        
+        if (!aggregated[timeKey]) {
+          aggregated[timeKey] = {};
+        }
+        
+        Object.keys(historyData[date]).forEach(appId => {
+          if (!aggregated[timeKey][appId] || historyData[date][appId] > aggregated[timeKey][appId]) {
+            aggregated[timeKey][appId] = historyData[date][appId];
+          }
+        });
+      });
+      
+      return aggregated;
+    }
+
+    // 新增：获取时间键
+    function getTimeKey(dateString, timeRange) {
+      const date = new Date(dateString);
+      
+      switch (timeRange) {
+        case 'week':
+          // 获取该周的第一天（周一）
+          const day = date.getDay();
+          const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+          const weekStart = new Date(date.setDate(diff));
+          return weekStart.toISOString().split('T')[0];
+        case 'month':
+          return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+        case 'year':
+          return date.getFullYear().toString();
+        default: // day
+          return dateString;
+      }
+    }
+
+    // 新增：根据时间范围格式化日期
+    function formatDateByTimeRange(dateString, timeRange) {
+      const date = new Date(dateString);
+      
+      switch (timeRange) {
+        case 'week':
+          const weekStart = new Date(date);
+          const weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekStart.getDate() + 6);
+          return `${formatDate(weekStart.toISOString().split('T')[0])} - ${formatDate(weekEnd.toISOString().split('T')[0])}`;
+        case 'month':
+          return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' });
+        case 'year':
+          return date.getFullYear().toString();
+        default: // day
+          return formatDate(dateString);
+      }
+    }
+
+    // 新增：改变全局统计时间范围
+    function changeGlobalTimeRange(range) {
+      currentGlobalTimeRange = range;
+      
+      // 更新按钮状态
+      document.querySelectorAll('.global-chart-container .time-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent === getTimeRangeText(range));
+      });
+      
+      // 重新渲染图表
+      if (globalStatsData) {
+        renderGlobalStatsChart();
+      }
+    }
+
+    // 新增：改变历史数据时间范围
+    function changeHistoryTimeRange(range) {
+      currentHistoryTimeRange = range;
+      
+      // 更新按钮状态
+      document.querySelectorAll('.history-modal .time-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent === getTimeRangeText(range));
+      });
+      
+      // 重新渲染图表
+      if (currentServerHistoryData) {
+        renderHistoryChart(currentServerHistoryData);
+      }
+    }
+
+    // 新增：获取时间范围文本
+    function getTimeRangeText(range) {
+      switch (range) {
+        case 'week': return '周';
+        case 'month': return '月';
+        case 'year': return '年';
+        default: return '日';
+      }
+    }
+
+    // 修改：渲染历史数据图表，支持时间范围
+    function renderHistoryChart(historyData) {
+      const ctx = historyChart.getContext('2d');
+      
+      // 销毁之前的图表实例
+      if (historyChartInstance) {
+        historyChartInstance.destroy();
+      }
+      
+      // 按时间范围聚合数据
+      const aggregatedData = aggregateHistoryDataByTimeRange(historyData.history, currentHistoryTimeRange);
+      const labels = Object.keys(aggregatedData).sort();
+      const playerCounts = labels.map(label => aggregatedData[label]);
+      
+      historyChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels.map(label => formatDateByTimeRange(label, currentHistoryTimeRange)),
+          datasets: [{
+            label: '最大在线人数',
+            data: playerCounts,
+            borderColor: 'rgba(110, 231, 183, 0.8)',
+            backgroundColor: 'rgba(110, 231, 183, 0.1)',
+            tension: 0.3,
+            fill: true,
+            pointBackgroundColor: 'rgba(110, 231, 183, 1)',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: {
+                color: 'rgba(215, 225, 234, 0.8)'
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(14, 16, 18, 0.9)',
+              titleColor: 'rgba(215, 225, 234, 0.9)',
+              bodyColor: 'rgba(215, 225, 234, 0.8)',
+              borderColor: 'rgba(255, 255, 255, 0.1)',
+              borderWidth: 1,
+              displayColors: false
+            },
+            zoom: {
+              zoom: {
+                wheel: {
+                  enabled: true,
+                },
+                pinch: {
+                  enabled: true
+                },
+                mode: 'x',
+              },
+              pan: {
+                enabled: true,
+                mode: 'x',
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: {
+                color: 'rgba(255, 255, 255, 0.05)'
+              },
+              ticks: {
+                color: 'rgba(215, 225, 234, 0.7)'
+              }
+            },
+            y: {
+              beginAtZero: true,
+              grid: {
+                color: 'rgba(255, 255, 255, 0.05)'
+              },
+              ticks: {
+                color: 'rgba(215, 225, 234, 0.7)'
+              }
+            }
+          },
+          interaction: {
+            mode: 'nearest',
+            axis: 'x',
+            intersect: false
+          }
+        }
+      });
+    }
+
+    // 新增：按时间范围聚合历史数据
+    function aggregateHistoryDataByTimeRange(historyData, timeRange) {
+      const aggregated = {};
+      
+      Object.keys(historyData).forEach(date => {
+        const timeKey = getTimeKey(date, timeRange);
+        
+        if (!aggregated[timeKey] || historyData[date] > aggregated[timeKey]) {
+          aggregated[timeKey] = historyData[date];
+        }
+      });
+      
+      return aggregated;
+    }
+
+    // 修改：显示服务器历史数据模态框
+    function showHistoryModal(server) {
+      const key = `${server.ip}:${server.port}`;
+      historyServerName.textContent = server.name || '未知服务器';
+      historyServerInfo.textContent = `${server.ip}:${server.port} > ${server.isp || '-'}`;
+      
+      // 显示加载中状态
+      historyTableBody.innerHTML = '<tr><td colspan="2" style="text-align: center;">加载中...</td></tr>';
+      historyNoData.style.display = 'none';
+      historyTableContainer.style.display = 'table';
+      
+      // 重置时间范围
+      currentHistoryTimeRange = 'day';
+      document.querySelectorAll('.history-modal .time-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent === '日');
+      });
+      
+      // 销毁之前的图表实例
+      if (historyChartInstance) {
+        historyChartInstance.destroy();
+        historyChartInstance = null;
+      }
+      
+      // 显示模态框
+      historyModal.classList.add('show');
+      
+      // 获取服务器历史数据
+      axios.get(`/api/server-history/${encodeURIComponent(key)}`)
+        .then(response => {
+          const historyData = response.data;
+          currentServerHistoryData = historyData;
+          renderHistoryData(historyData);
+        })
+        .catch(error => {
+          console.error('获取服务器历史数据失败:', error);
+          historyTableBody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--muted);">获取历史数据失败</td></tr>';
+          historyNoData.style.display = 'block';
+          historyTableContainer.style.display = 'none';
+        });
+    }
+
+    // 修改：渲染服务器历史数据
+    function renderHistoryData(historyData) {
+      if (!historyData.history || Object.keys(historyData.history).length === 0) {
+        historyNoData.style.display = 'block';
+        historyTableContainer.style.display = 'none';
+        return;
+      }
+      
+      historyNoData.style.display = 'none';
+      historyTableContainer.style.display = 'table';
+      
+      // 渲染表格（显示原始日期数据）
+      historyTableBody.innerHTML = '';
+      const dates = Object.keys(historyData.history).sort();
+      dates.forEach(date => {
+        const row = document.createElement('tr');
+        const dateCell = document.createElement('td');
+        const countCell = document.createElement('td');
+        
+        dateCell.textContent = formatDate(date);
+        countCell.textContent = historyData.history[date];
+        
+        row.appendChild(dateCell);
+        row.appendChild(countCell);
+        historyTableBody.appendChild(row);
+      });
+      
+      // 渲染图表（支持时间范围切换）
+      renderHistoryChart(historyData);
+    }
+
+    // 其余函数保持不变...
     function startLoadingAnimation(message = '已连接，等待服务器数据') {
       let dots = 1;
       clearInterval(loadingInterval);
@@ -1162,77 +1863,9 @@
       modal.classList.remove('show');
     }
 
-    // 新增：显示服务器历史数据模态框
-    function showHistoryModal(server) {
-      const key = `${server.ip}:${server.port}`;
-      historyServerName.textContent = server.name || '未知服务器';
-      historyServerInfo.textContent = `IP: ${server.ip}:${server.port} | 服务商: ${server.isp || '-'}`;
-      
-      // 显示加载中状态
-      historyTableBody.innerHTML = '<tr><td colspan="2" style="text-align: center;">加载中...</td></tr>';
-      historyNoData.style.display = 'none';
-      historyTableContainer.style.display = 'table';
-      
-      // 销毁之前的图表实例
-      if (historyChartInstance) {
-        historyChartInstance.destroy();
-        historyChartInstance = null;
-      }
-      
-      // 显示模态框
-      historyModal.classList.add('show');
-      
-      // 获取服务器历史数据
-      axios.get(`/api/server-history/${encodeURIComponent(key)}`)
-        .then(response => {
-          const historyData = response.data;
-          renderHistoryData(historyData);
-        })
-        .catch(error => {
-          console.error('获取服务器历史数据失败:', error);
-          historyTableBody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--muted);">获取历史数据失败</td></tr>';
-          historyNoData.style.display = 'block';
-          historyTableContainer.style.display = 'none';
-        });
-    }
-
     // 新增：隐藏服务器历史数据模态框
     function hideHistoryModal() {
       historyModal.classList.remove('show');
-    }
-
-    // 新增：渲染服务器历史数据
-    function renderHistoryData(historyData) {
-      if (!historyData.history || Object.keys(historyData.history).length === 0) {
-        historyNoData.style.display = 'block';
-        historyTableContainer.style.display = 'none';
-        return;
-      }
-      
-      historyNoData.style.display = 'none';
-      historyTableContainer.style.display = 'table';
-      
-      // 准备图表数据
-      const dates = Object.keys(historyData.history).sort();
-      const playerCounts = dates.map(date => historyData.history[date]);
-      
-      // 渲染表格
-      historyTableBody.innerHTML = '';
-      dates.forEach(date => {
-        const row = document.createElement('tr');
-        const dateCell = document.createElement('td');
-        const countCell = document.createElement('td');
-        
-        dateCell.textContent = formatDate(date);
-        countCell.textContent = historyData.history[date];
-        
-        row.appendChild(dateCell);
-        row.appendChild(countCell);
-        historyTableBody.appendChild(row);
-      });
-      
-      // 渲染图表
-      renderHistoryChart(dates, playerCounts);
     }
 
     // 新增：格式化日期
@@ -1242,74 +1875,6 @@
         year: 'numeric',
         month: '2-digit',
         day: '2-digit'
-      });
-    }
-
-    // 新增：渲染历史数据图表
-    function renderHistoryChart(dates, playerCounts) {
-      const ctx = historyChart.getContext('2d');
-      
-      // 销毁之前的图表实例
-      if (historyChartInstance) {
-        historyChartInstance.destroy();
-      }
-      
-      historyChartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: dates.map(formatDate),
-          datasets: [{
-            label: '最大在线人数',
-            data: playerCounts,
-            borderColor: 'rgba(110, 231, 183, 0.8)',
-            backgroundColor: 'rgba(110, 231, 183, 0.1)',
-            tension: 0.3,
-            fill: true,
-            pointBackgroundColor: 'rgba(110, 231, 183, 1)',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 6
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              labels: {
-                color: 'rgba(215, 225, 234, 0.8)'
-              }
-            },
-            tooltip: {
-              backgroundColor: 'rgba(14, 16, 18, 0.9)',
-              titleColor: 'rgba(215, 225, 234, 0.9)',
-              bodyColor: 'rgba(215, 225, 234, 0.8)',
-              borderColor: 'rgba(255, 255, 255, 0.1)',
-              borderWidth: 1,
-              displayColors: false
-            }
-          },
-          scales: {
-            x: {
-              grid: {
-                color: 'rgba(255, 255, 255, 0.05)'
-              },
-              ticks: {
-                color: 'rgba(215, 225, 234, 0.7)'
-              }
-            },
-            y: {
-              beginAtZero: true,
-              grid: {
-                color: 'rgba(255, 255, 255, 0.05)'
-              },
-              ticks: {
-                color: 'rgba(215, 225, 234, 0.7)'
-              }
-            }
-          }
-        }
       });
     }
 
