@@ -8,10 +8,11 @@
 ```bash
 npm install dgram express node-fetch source-server-query steam-server-query ws
 ```
-#### 编辑 `API_TOKEN.json`（填入你的 [ipinfo.io](https://ipinfo.io) Token）
+#### 编辑 `API_TOKEN.json`（填入你的 [ipinfo.io](https://ipinfo.io) Token 和 [Steam Dev API](https://steamcommunity.com/dev/apikey) Token）
 ```json
 {
     "IPINFO_TOKEN": "YOUR_KEY"
+    "STEAM_API_KEY": "YOUR_KEY"
 }
 ```
 #### 编辑 app_id.json（填入要查询的 Steam 游戏 App ID）
