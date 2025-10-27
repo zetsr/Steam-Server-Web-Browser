@@ -205,6 +205,11 @@ const SERVER_HISTORY_FILE = path.join(__dirname, 'server_history.json');
 const GLOBAL_STATS_FILE = path.join(__dirname, 'global_stats.json'); // 新增：全局统计数据文件
 const TOKEN_FILE = path.join(__dirname, 'API_TOKEN.json');
 const APP_ID_FILE = path.join(__dirname, 'app_id.json');
+const TAGS_CACHE_FILE = path.join(__dirname, 'tags_cache.json'); // 新增 tags 缓存文件
+
+// 缓存配置
+const TAG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 分钟
+const DIFF_THRESHOLD = 5; // 连续 5 次不同才更新缓存
 
 let clients = new Set();
 let geoCache = {};
@@ -218,6 +223,9 @@ let globalStats = { // 新增：全局统计数据
 };
 let isUpdatingServerInfo = false;
 let lastHistoryDate = null;
+
+// 内存中的 tags 缓存结构：{ "<ip:port>": { tags: [...], lastUpdated: ms, diffCount: 0 } }
+let tagsCache = {};
 
 function log(message) {
   const now = new Date();
@@ -279,6 +287,47 @@ async function saveGlobalStats() {
     log('成功保存 global_stats.json');
   } catch (err) {
     log(`写入 global_stats.json 失败: ${err.message}`);
+  }
+}
+
+// 新增：加载 tags cache 文件
+async function loadTagsCacheFile() {
+  try {
+    await fs.access(TAGS_CACHE_FILE);
+    const data = await fs.readFile(TAGS_CACHE_FILE, 'utf8');
+    if (data.trim()) {
+      tagsCache = JSON.parse(data);
+      log(`成功加载 tags_cache.json，包含 ${Object.keys(tagsCache).length} 条缓存`);
+    } else {
+      tagsCache = {};
+      log('tags_cache.json 为空，初始化为空对象');
+    }
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      log('tags_cache.json 不存在，正在创建...');
+      try {
+        await fs.writeFile(TAGS_CACHE_FILE, JSON.stringify({}, null, 2), 'utf8');
+        tagsCache = {};
+        log('tags_cache.json 创建成功');
+      } catch (e) {
+        log(`创建 tags_cache.json 失败: ${e.message}`);
+      }
+    } else {
+      log(`读取 tags_cache.json 失败: ${err.message}`);
+      tagsCache = {};
+    }
+  }
+}
+
+// 新增：保存 tags cache 文件（原子写入）
+async function saveTagsCacheFile() {
+  const tempFile = TAGS_CACHE_FILE + '.tmp';
+  try {
+    await fs.writeFile(tempFile, JSON.stringify(tagsCache, null, 2), 'utf8');
+    await fs.rename(tempFile, TAGS_CACHE_FILE);
+    log('成功保存 tags_cache.json');
+  } catch (err) {
+    log(`写入 tags_cache.json 失败: ${err.message}`);
   }
 }
 
@@ -413,61 +462,185 @@ async function loadToken() {
   }
 }
 
-// 原有的服务器查询函数保持不变...
+// ----------------- 修复与增强区域 -----------------
+
+/**
+ * normalizeRuleValue - 将规则值转换为可读字符串或原始标量
+ */
+function normalizeRuleValue(v) {
+  try {
+    if (v === null || v === undefined) return '';
+    if (Buffer.isBuffer(v)) return v.toString('utf8');
+    if (typeof v === 'object') {
+      // 如果是对象且有 value/name 对，应优先取这些字段
+      if (v.value !== undefined && (typeof v.value === 'string' || typeof v.value === 'number' || typeof v.value === 'boolean')) {
+        return String(v.value);
+      }
+      if (v.val !== undefined) return String(v.val);
+      if (v.name !== undefined && v.value === undefined) return JSON.stringify(v);
+      // 最后退回到 JSON 字符串（尽量短）
+      return JSON.stringify(v);
+    }
+    return String(v);
+  } catch (e) {
+    return String(v);
+  }
+}
+
+/**
+ * parseRulesToObject - 将 Query.rules 的返回值统一转换为 { key => value } 形式
+ * 兼容：
+ *  - 直接对象 { KEY: 'VAL', ... }
+ *  - 数组 [{ name:'KEY', value:'VAL' }, ['KEY','VAL'], 'KEY VAL', ...]
+ *  - 各种大小写/Buffer/嵌套情况
+ */
+function parseRulesToObject(rulesData) {
+  const out = {};
+  if (!rulesData) return out;
+
+  if (Array.isArray(rulesData)) {
+    for (const entry of rulesData) {
+      if (entry === null || entry === undefined) continue;
+      if (typeof entry === 'string') {
+        // 可能是 "KEY VAL" 或 "KEY\0VAL" 等
+        const parts = entry.split(/\s+/, 2);
+        if (parts.length === 2) {
+          out[parts[0]] = normalizeRuleValue(parts[1]);
+        } else {
+          out[entry] = '';
+        }
+      } else if (Array.isArray(entry)) {
+        // 可能是 ['KEY','VAL']
+        const k = entry[0];
+        const v = entry[1];
+        if (k !== undefined) out[String(k)] = normalizeRuleValue(v);
+      } else if (typeof entry === 'object') {
+        // 常见： { name: 'KEY', value: 'VAL' } 或 { key:'KEY', val:'VAL' } 或 { 'KEY': 'VAL' }
+        // 优先取 name/value、key/val、然后尝试枚举属性
+        const name = entry.name || entry.key || entry.k || entry.n;
+        const value = entry.value !== undefined ? entry.value : (entry.val !== undefined ? entry.val : (entry.v !== undefined ? entry.v : undefined));
+        if (name !== undefined) {
+          out[String(name)] = normalizeRuleValue(value === undefined ? (entry.value !== undefined ? entry.value : entry) : value);
+        } else {
+          // 如果对象内本身就是键->值的映射（例如 {KEY:'VAL'}）
+          for (const [kk, vv] of Object.entries(entry)) {
+            // 跳过原型链上的无关字段（通常不会出现）
+            out[String(kk)] = normalizeRuleValue(vv);
+          }
+        }
+      } else {
+        // 其他类型，安全地 toString
+        out[String(entry)] = '';
+      }
+    }
+    return out;
+  } else if (typeof rulesData === 'object') {
+    // 直接对象：可能含 Buffer 或复杂值
+    for (const [k, v] of Object.entries(rulesData)) {
+      out[String(k)] = normalizeRuleValue(v);
+    }
+    return out;
+  } else {
+    // 兜底：转换为字符串
+    out[String(rulesData)] = '';
+    return out;
+  }
+}
+
+/**
+ * findRuleIgnoreCase - 在规则对象中按多个候选键查找（忽略大小写）
+ * candidates: array of candidate keys (例如 ['FGV_s','GameVersion_s'])
+ */
+function findRuleIgnoreCase(rulesObj, candidates) {
+  if (!rulesObj || typeof rulesObj !== 'object') return undefined;
+  const lowered = {};
+  for (const k of Object.keys(rulesObj)) {
+    lowered[k.toLowerCase()] = rulesObj[k];
+  }
+  for (const c of candidates) {
+    const v = lowered[c.toLowerCase()];
+    if (v !== undefined) return v;
+  }
+  return undefined;
+}
+
+/**
+ * safeBool - 将规则值解析为布尔（三态：true/false/undefined）
+ */
+function safeBool(val) {
+  if (val === undefined || val === null) return undefined;
+  const s = String(val).toLowerCase().trim();
+  if (s === '1' || s === 'true' || s === 'yes' || s === 'y') return true;
+  if (s === '0' || s === 'false' || s === 'no' || s === 'n') return false;
+  return undefined;
+}
+
+/**
+ * mapServerType - 将 ServerType_i 的整数映射为可读标签
+ * 0 = 不推送
+ * 1 = PVE
+ * 2 = PVP
+ * 3 = PVP-PVE
+ * 4 = RP-PVE
+ * 5 = RP-PVP
+ * 6 = RP-PVP-PVE
+ * 返回 null 表示不推送
+ */
+function mapServerType(n) {
+  const num = parseInt(String(n).trim(), 10);
+  if (Number.isNaN(num)) return null;
+  switch (num) {
+    case 0: return null; // 不推送
+    case 1: return 'PVE';
+    case 2: return 'PVP';
+    case 3: return 'PVP-PVE';
+    case 4: return 'RP-PVE';
+    case 5: return 'RP-PVP';
+    case 6: return 'RP-PVP-PVE';
+    default: return `ServerType:${num}`; // 非预期值，仍返回可读格式以便调试
+  }
+}
+
+/**
+ * arraysEqualIgnoreOrder - 比较两个数组（元素视为字符串）是否相等（忽略顺序）
+ */
+function arraysEqualIgnoreOrder(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  const ma = {};
+  for (const x of a) {
+    const k = String(x);
+    ma[k] = (ma[k] || 0) + 1;
+  }
+  for (const y of b) {
+    const k = String(y);
+    if (!ma[k]) return false;
+    ma[k]--;
+  }
+  return true;
+}
+
+// 修复：改进的服务器查询函数 - 添加规则查询和标签生成（仅推送指定字段）
+// 并实现 tags 本地缓存策略
 async function queryServerInfo(ip, port) {
   try {
-    log(`开始查询服务器信息: ${ip}:${port} (ping 3次)`);
+    const serverKey = `${ip}:${port}`;
+    log(`开始查询服务器信息: ${serverKey}`);
 
-    const singleQuery = async (attempt) => {
-      try {
-        const infoStart = process.hrtime.bigint();
-        const serverInfo = await Query.info(ip, port, INFO_TIMEOUT);
-        const infoEnd = process.hrtime.bigint();
+    // 首先尝试查询基本信息
+    const infoStart = process.hrtime.bigint();
+    const serverInfo = await Query.info(ip, port, INFO_TIMEOUT);
+    const infoEnd = process.hrtime.bigint();
 
-        if (!serverInfo) {
-          log(`第 ${attempt} 次查询服务器信息为空 (${ip}:${port})`);
-          return null;
-        }
-
-        const latency = Number((infoEnd - infoStart) / 1000000n);
-        log(`第 ${attempt} 次 A2S_INFO 延迟 (${ip}:${port}): ${latency} ms`);
-        
-        return { serverInfo, latency };
-      } catch (err) {
-        log(`第 ${attempt} 次服务器查询失败 (${ip}:${port}): ${err.message}`);
-        return null;
-      }
-    };
-
-    const pingPromises = [
-      singleQuery(1),
-      singleQuery(2),
-      singleQuery(3),
-      singleQuery(4),
-      singleQuery(5)
-    ];
-
-    const results = await Promise.allSettled(pingPromises);
-    
-    const successfulResults = results
-      .filter(result => result.status === 'fulfilled' && result.value !== null)
-      .map(result => result.value);
-
-    if (successfulResults.length === 0) {
-      log(`所有 3 次 ping 均失败 (${ip}:${port})`);
+    if (!serverInfo) {
+      log(`服务器信息为空 (${serverKey})`);
       return null;
     }
 
-    const bestResult = successfulResults.reduce((best, current) => {
-      return (!best || current.latency < best.latency) ? current : best;
-    }, null);
+    const latency = Number((infoEnd - infoStart) / 1000000n);
+    log(`A2S_INFO 延迟 (${serverKey}): ${latency} ms`);
 
-    log(`最佳 ping 结果 (${ip}:${port}): ${bestResult.latency} ms (${successfulResults.length}/3 成功)`);
-    
-    const serverInfo = bestResult.serverInfo;
-    const latency = bestResult.latency;
-
-    log(`收到服务器信息字段 (${ip}:${port}): ${Object.keys(serverInfo).join(', ')}`);
+    log(`收到服务器信息字段 (${serverKey}): ${Object.keys(serverInfo).join(', ')}`);
 
     let players = [];
     try {
@@ -479,11 +652,175 @@ async function queryServerInfo(ip, port) {
           duration: formatDuration(player.duration)
         }));
       } else {
-        log(`玩家数据非数组或为空 (${ip}:${port})`);
+        log(`玩家数据非数组或为空 (${serverKey})`);
       }
     } catch (err) {
-      log(`玩家列表查询失败 (${ip}:${port}): ${err.message}`);
+      log(`玩家列表查询失败 (${serverKey}): ${err.message}`);
     }
+
+    // 先检查 tags cache 是否存在且未过期
+    const nowMs = Date.now();
+    let tags = [];
+    let rules = {};
+    const cacheEntry = tagsCache[serverKey];
+    if (cacheEntry && (nowMs - (cacheEntry.lastUpdated || 0) <= TAG_CACHE_TTL_MS)) {
+      // 使用本地缓存的 tags，跳过 rules 查询
+      tags = Array.isArray(cacheEntry.tags) ? cacheEntry.tags.slice() : [];
+      log(`使用本地 tags 缓存 (${serverKey})，缓存时长 ${(nowMs - cacheEntry.lastUpdated)} ms，tags=${tags.join(', ')}`);
+    } else {
+      // 缓存不存在或过期，需要查询 rules
+      try {
+        const rulesData = await Query.rules(ip, port, INFO_TIMEOUT);
+        if (rulesData) {
+          rules = parseRulesToObject(rulesData);
+          const ruleCount = Object.keys(rules).length;
+          log(`规则查询成功 (${serverKey}): 获取到 ${ruleCount} 条规则`);
+          log(`服务器 ${serverKey} 的规则详情: ${JSON.stringify(rules, null, 2)}`);
+
+          // ---- 仅提取指定的字段并构造成 tags ----
+          // 只推送这些字段：GameVersion_s、Location_s、ServerType_i、EAC_b、FGV_s、RDY_b、PVE_b、RP_b、UFL_b
+          const allowedKeys = [
+            { key: 'GameVersion_s', type: 'string' },
+            { key: 'Location_s', type: 'string' },
+            { key: 'ServerType_i', type: 'servertype' }, // 特殊处理：映射为友好字符串或不推送
+            { key: 'EAC_b', type: 'bool' },
+            { key: 'FGV_s', type: 'string' },
+            // { key: 'RDY_b', type: 'bool' },
+            { key: 'PVE_b', type: 'bool' },
+            { key: 'RP_b', type: 'bool' },
+            { key: 'UFL_b', type: 'bool' }
+          ];
+
+          let foundAnyAllowedKey = false;
+          const newTags = [];
+
+          for (const item of allowedKeys) {
+            const k = item.key;
+            const t = item.type;
+            // 用 findRuleIgnoreCase 来识别 key 是否存在（忽略大小写）
+            const foundVal = findRuleIgnoreCase(rules, [k]);
+            if (foundVal === undefined || foundVal === null || String(foundVal).trim() === '') {
+              // 仅当键不存在或值为空时跳过
+              continue;
+            }
+
+            foundAnyAllowedKey = true; // 只要找到任一允许的键，标记为成功（用于缓存策略）
+
+            if (t === 'string') {
+              const s = String(foundVal).trim();
+              if (s.length > 0) {
+                newTags.push(s);
+                log(`从规则 ${k} 添加标签: ${s}`);
+              }
+            } else if (t === 'servertype') {
+              const mapped = mapServerType(foundVal);
+              if (mapped) {
+                newTags.push(mapped);
+                log(`从规则 ${k} 添加映射标签: ${mapped} (原始=${String(foundVal).trim()})`);
+              } else {
+                log(`规则 ${k} 值为 0 或映射为 null，已跳过推送`);
+              }
+            } else if (t === 'bool') {
+              // 处理特殊布尔键：
+              // - PVE_b: 只要键存在就推送 PvE（true）或 PvP（false）
+              // - EAC_b: 只要键存在，若 true 推送 NoEAC，若 false 推送 EAC（按你的要求反转）
+              // - 其它布尔键（RDY_b、RP_b、UFL_b）：只有为 true 时推送
+              const loweredKey = String(k).toLowerCase();
+              if (loweredKey === 'pve_b' || loweredKey === 'pve') {
+                const b = safeBool(foundVal);
+                if (b === true) {
+                  newTags.push('PvE');
+                  log(`从规则 ${k} 添加布尔标签: PvE`);
+                } else if (b === false) {
+                  newTags.push('PvP');
+                  log(`从规则 ${k} 添加布尔标签: PvP (PVE_b 明确为 false)`);
+                } else {
+                  log(`规则 ${k} 值无法解析为布尔，跳过`);
+                }
+              } else if (loweredKey === 'eac_b' || loweredKey === 'eac') {
+                // 反转逻辑：存在且 true -> 推送 NoEAC；存在且 false -> 推送 EAC
+                const b = safeBool(foundVal);
+                if (b === true) {
+                  newTags.push('NoEAC');
+                  log(`从规则 ${k} 添加布尔标签: NoEAC (EAC_b=true 表示无 EAC)`);
+                } else if (b === false) {
+                  newTags.push('EAC');
+                  log(`从规则 ${k} 添加布尔标签: EAC (EAC_b=false 表示有 EAC)`);
+                } else {
+                  log(`规则 ${k} 值无法解析为布尔，跳过`);
+                }
+              } else {
+                const b = safeBool(foundVal);
+                if (b === true) {
+                  let pushTag = k;
+                  if (k.toLowerCase().startsWith('rp')) pushTag = 'RP';
+                  // else if (k.toLowerCase().startsWith('rdy')) pushTag = 'RDY'; // 没啥用
+                  else if (k.toLowerCase().startsWith('ufl')) pushTag = 'UFL';
+                  // else if (k.toLowerCase().startsWith('eac')) pushTag = 'NoEAC'; // EAC_b 已被上面处理
+                  newTags.push(pushTag);
+                  log(`从规则 ${k} 添加布尔标签: ${pushTag}`);
+                } else {
+                  log(`规则 ${k} 为 false 或不可判定，跳过推送 (${k}=${String(foundVal)})`);
+                }
+              }
+            }
+          } // end for allowedKeys
+
+          // 去重并限制数量
+          const uniq = [];
+          for (const t of newTags) {
+            if (!uniq.includes(t)) uniq.push(t);
+          }
+          if (uniq.length > 12) uniq.splice(12);
+          // 将 newTags 赋给 tags 以便推送（我们会依据缓存策略决定是否写缓存）
+          tags = uniq;
+
+          // 缓存策略：只要任意 allowedKey 存在，就视为“查询成功”，并按下面规则处理缓存
+          if (foundAnyAllowedKey) {
+            const existing = tagsCache[serverKey];
+            if (!existing) {
+              // 没有缓存，直接写入并保存（首次发现就缓存 5 分钟）
+              tagsCache[serverKey] = {
+                tags: tags.slice(),
+                lastUpdated: Date.now(),
+                diffCount: 0
+              };
+              await saveTagsCacheFile();
+              log(`首次缓存 tags (${serverKey}) -> ${tags.join(', ')}`);
+            } else {
+              // 有缓存：比较新 tags 与缓存 tags
+              if (arraysEqualIgnoreOrder(existing.tags, tags)) {
+                // 相同：重置 diffCount 并刷新 lastUpdated（延长缓存有效期）
+                existing.diffCount = 0;
+                existing.lastUpdated = Date.now();
+                await saveTagsCacheFile();
+                log(`查询结果与缓存相同 (${serverKey})，刷新缓存时间并保持 tags 不变`);
+              } else {
+                // 不同：增加 diffCount；仅当 diffCount 达到阈值才真正替换缓存
+                existing.diffCount = (existing.diffCount || 0) + 1;
+                log(`查询结果与缓存不同 (${serverKey})，diffCount=${existing.diffCount}/${DIFF_THRESHOLD}`);
+                if (existing.diffCount >= DIFF_THRESHOLD) {
+                  existing.tags = tags.slice();
+                  existing.lastUpdated = Date.now();
+                  existing.diffCount = 0;
+                  await saveTagsCacheFile();
+                  log(`连续 ${DIFF_THRESHOLD} 次不同，已更新本地缓存 (${serverKey}) -> ${tags.join(', ')}`);
+                } else {
+                  // 仍然保留旧缓存，等待更多差异次数
+                  await saveTagsCacheFile();
+                }
+              }
+            }
+          } else {
+            log(`规则查询成功但未找到任何允许的键 (${serverKey})，不做缓存更改`);
+          }
+        } else {
+          log(`规则查询返回空 (${serverKey})`);
+        }
+      } catch (err) {
+        log(`规则查询失败 (${serverKey}): ${err && err.message ? err.message : err}`);
+      }
+    } // end else (cache expired path)
 
     const rawMaxPlayers = serverInfo.maxPlayers || serverInfo.max_players || 0;
     const max_players = rawMaxPlayers < 0 ? rawMaxPlayers + 256 : rawMaxPlayers;
@@ -500,16 +837,20 @@ async function queryServerInfo(ip, port) {
           serverInfo.environment === 'w' ? 'Windows' :
           serverInfo.environment === 'm' ? 'macOS' : '-',
       players,
-      latency
+      latency,
+      tags, // 仅包含允许的标签（可能来自缓存或实时查询）
+      rules // 仍保留规则字段用于调试（若未查询 rules 则为空对象）
     };
 
-    log(`返回服务器信息 (${ip}:${port}): current_players=${info.current_players}, max_players=${info.max_players}, latency=${info.latency}ms`);
+    log(`返回服务器信息 (${ip}:${port}): current_players=${info.current_players}, max_players=${info.max_players}, latency=${info.latency}ms, tags=${tags.join(', ')}`);
     return info;
   } catch (err) {
-    log(`服务器查询总体失败 (${ip}:${port}): ${err.message}`);
+    log(`服务器查询总体失败 (${ip}:${port}): ${err && err.message ? err.message : err}`);
     return null;
   }
 }
+
+// ----------------------------------------------------
 
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -725,8 +1066,8 @@ async function updateServerIPs() {
 }
 
 // 新增：获取本地日期字符串
-function getLocalDateString() {
-  const now = new Date();
+function getLocalDateString(date) {
+  const now = date ? new Date(date) : new Date();
   const year = now.getFullYear();
   const month = (now.getMonth() + 1).toString().padStart(2, '0');
   const day = now.getDate().toString().padStart(2, '0');
@@ -1068,13 +1409,14 @@ async function startServersAndServices() {
     });
   }
 
-  // 初始化所有数据文件
+  // 初始化所有数据文件（包含 tags cache）
   try {
     await Promise.all([
-      initializeGeoCacheFile(), 
-      initializeServerListFile(), 
+      initializeGeoCacheFile(),
+      initializeServerListFile(),
       initializeServerHistoryFile(),
-      initializeGlobalStatsFile() // 新增：初始化全局统计数据文件
+      initializeGlobalStatsFile(),
+      loadTagsCacheFile() // 加载 tags 缓存
     ]);
   } catch (err) {
     log(`初始化文件失败: ${err.message}`);
@@ -1128,7 +1470,7 @@ app.get('/api/global-stats', async (req, res) => {
 
 // 安全修复：阻止访问敏感文件
 app.use((req, res, next) => {
-  const blockedFiles = ['API_TOKEN.json', 'geo_cache.json', 'server_list.json', 'server_history.json', 'global_stats.json', 'app_id.json', 'your_domain.pfx'];
+  const blockedFiles = ['API_TOKEN.json', 'geo_cache.json', 'server_list.json', 'server_history.json', 'global_stats.json', 'app_id.json', 'your_domain.pfx', 'tags_cache.json'];
   const requestedFile = path.basename(req.path);
   if (blockedFiles.includes(requestedFile)) {
     return res.status(403).send('Forbidden');
@@ -1142,5 +1484,4 @@ app.use(express.static(__dirname));
 startServersAndServices().catch(err => {
   log(`启动失败: ${err && err.message ? err.message : err}`);
   process.exit(1);
-
 });

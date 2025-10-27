@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Steam Server Web Browser</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Great+Vibes&display=swap" rel="stylesheet">
-  <!-- 引入Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- 引入Chart.js缩放插件 -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.0/dist/chartjs-plugin-zoom.min.js"></script>
   <style>
     :root{
@@ -660,20 +658,44 @@
       align-items: center;
     }
 
+    /* 重新设计的标签样式 - 半透明填充，不透明边框 */
     .tag {
       padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 700;
-      color: white;
-      border: 1px solid rgba(255,255,255,0.1);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      border-radius: 8px; /* 改为较小的圆角，更现代 */
+      font-size: 11px; /* 稍微减小字体大小 */
+      font-weight: 600; /* 降低字重，不那么突出 */
+      color: rgba(255, 255, 255, 0.9); /* 使用半透明白色文字 */
+      border: 1px solid; /* 不透明边框 */
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15); /* 更柔和的阴影 */
       transition: all 0.2s var(--ease);
+      background: rgba(255, 255, 255, 0.08); /* 半透明填充 */
+      backdrop-filter: blur(5px); /* 玻璃态模糊效果 */
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 添加微妙的发光效果 */
+    .tag::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.03), transparent);
+      opacity: 0;
+      transition: opacity 0.2s var(--ease);
+      z-index: -1;
     }
 
     .tag:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      transform: translateY(-1px); /* 更微妙的悬停效果 */
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      background: rgba(255, 255, 255, 0.12); /* 悬停时稍微增加透明度 */
+    }
+
+    .tag:hover::before {
+      opacity: 1;
     }
 
     /* 调整表格行高以适应标签行 */
@@ -883,16 +905,13 @@
       <div class="visitor-count" id="visitorCount">0 位访客</div>
     </header>
 
-    <!-- 选项卡 -->
     <div class="tab-container">
       <button class="tab-btn active" id="homeTab" onclick="switchTab('home')">主页</button>
       <button class="tab-btn" id="globalStatsTab" onclick="switchTab('globalStats')">全球统计数据</button>
     </div>
 
-    <!-- 主页内容 -->
     <div id="homeContent">
       <div class="controls" role="region" aria-label="Controls">
-        <!-- 移除刷新按钮，替换为搜索框 -->
         <input type="text" class="search-input" id="serverSearch" placeholder="搜索服务器名称" title="输入服务器名称进行筛选">
 
         <div class="multiselect" id="regionFilter">
@@ -925,7 +944,6 @@
       </div>
 
       <div class="table-container" aria-label="Server Table">
-        <!-- 加载动画 -->
         <div class="loading-overlay" id="loadingOverlay">
           <div>
             <div class="loading-spinner"></div>
@@ -952,14 +970,11 @@
         </table>
       </div>
 
-      <!-- 分页控件 -->
       <div class="pagination" id="paginationContainer"></div>
     </div>
 
-    <!-- 全球统计数据内容 -->
     <div class="global-stats-container" id="globalStatsContent">
       <div class="global-stats-grid" id="globalStatsGrid">
-        <!-- 游戏统计数据卡片将通过JavaScript动态生成 -->
       </div>
       
       <div class="global-chart-container">
@@ -973,6 +988,8 @@
         <div class="chart-legend" id="globalChartLegend"></div>
       </div>
     </div>
+
+    <!--这里有个BUG没修复，坐标有问题，会跟全球统计数据的游戏名称重叠-->
 
     <!--<div class="footer-links">
       <div><a href="https://ipinfo.io" target="_blank" rel="noopener noreferrer">IP Data by ipinfo.io</a></div>
@@ -988,7 +1005,6 @@
     </div>
   </div>
 
-  <!-- 新增：服务器历史数据模态框 -->
   <div class="modal history-modal" id="historyModal">
     <div class="modal-content">
       <button class="close-btn" onclick="hideHistoryModal()">×</button>
@@ -1026,7 +1042,6 @@
     </div>
   </div>
 
-  <!-- 新增：玩家列表模态框 -->
   <div class="modal" id="playerListModal">
     <div class="modal-content">
       <button class="close-btn" onclick="hidePlayerListModal()">×</button>
@@ -1055,7 +1070,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script>
-    // 注册Chart.js缩放插件
     Chart.register(ChartZoom);
 
     const tbody = document.getElementById('serverList');
@@ -1081,7 +1095,6 @@
     const homeTab = document.getElementById('homeTab');
     const globalStatsTab = document.getElementById('globalStatsTab');
 
-    // 新增：历史数据相关元素
     const historyModal = document.getElementById('historyModal');
     const historyServerName = document.getElementById('historyServerName');
     const historyServerInfo = document.getElementById('historyServerInfo');
@@ -1091,11 +1104,9 @@
     const historyTableContainer = document.getElementById('historyTableContainer');
     const playerListBtn = document.getElementById('playerListBtn');
 
-    // 新增：全局统计数据相关元素
     const globalStatsChart = document.getElementById('globalStatsChart');
     const globalChartLegend = document.getElementById('globalChartLegend');
 
-    // 新增：玩家列表相关元素
     const playerListModal = document.getElementById('playerListModal');
     const playerListServerName = document.getElementById('playerListServerName');
     const playerListServerInfo = document.getElementById('playerListServerInfo');
@@ -1113,36 +1124,30 @@
     let lastUpdateTime = null;
     let updateTimerInterval = null;
     let currentTooltip = null;
-    let lastRenderedKey = null; // Changed from lastRenderedServers to lastRenderedKey
+    let lastRenderedKey = null;
     let latencyUpdateQueue = new Map();
-    let isRendering = false; // A flag to prevent concurrent rendering
+    let isRendering = false; 
     let scrollHideTimer = null;
 
-    // 新增：分页和搜索相关变量
     let currentPage = urlParams.page || 1;
     let itemsPerPage = 20;
     let totalPages = 1;
     let searchFilter = urlParams.filter || '';
 
-    // 新增：加载状态管理
     let isLoading = true;
     let loadingStartTime = null;
-    let minLoadingTime = 1000; // 最小加载时间1秒
+    let minLoadingTime = 1000;
 
-    // 新增：选项卡状态
     let currentTab = 'home';
 
-    // 新增：图表相关变量
     let historyChartInstance = null;
     let globalStatsChartInstance = null;
     let currentHistoryTimeRange = 'day';
     let currentGlobalTimeRange = 'day';
     let currentServerHistoryData = null;
 
-    // 新增：全局统计数据
     let globalStatsData = null;
 
-    // 新增：标签颜色映射
     let tagColors = new Map();
 
     let ws = null;
@@ -1151,17 +1156,15 @@
     let reconnectTimeoutId = null;
     let reconnectCountdownIntervalId = null;
 
-    // 新增：生成标签颜色
     function getTagColor(tag) {
       if (!tagColors.has(tag)) {
-        // 使用确定性哈希生成颜色，确保相同标签颜色一致
         let hash = 0;
         for (let i = 0; i < tag.length; i++) {
           hash = tag.charCodeAt(i) + ((hash << 5) - hash);
         }
         const hue = hash % 360;
-        const saturation = 70 + (hash % 20); // 70-90%
-        const lightness = 45 + (hash % 15); // 45-60%
+        const saturation = 40 + (hash % 20); // 降低饱和度
+        const lightness = 35 + (hash % 15); // 降低亮度
         tagColors.set(tag, `hsl(${hue}, ${saturation}%, ${lightness}%)`);
       }
       return tagColors.get(tag);
@@ -1194,15 +1197,12 @@
       urlParams = parseURLParams();
     }
 
-    // 新增：选项卡切换功能
     function switchTab(tabName) {
       currentTab = tabName;
-      
-      // 更新选项卡按钮状态
+
       homeTab.classList.toggle('active', tabName === 'home');
       globalStatsTab.classList.toggle('active', tabName === 'globalStats');
-      
-      // 显示/隐藏内容
+
       homeContent.style.display = tabName === 'home' ? 'block' : 'none';
       globalStatsContent.style.display = tabName === 'globalStats' ? 'block' : 'none';
       
@@ -1211,7 +1211,6 @@
       }
     }
 
-    // 新增：加载全球统计数据
     function loadGlobalStats() {
       if (!globalStatsData) {
         showLoading();
@@ -1230,18 +1229,14 @@
       }
     }
 
-    // 新增：渲染全球统计数据
     function renderGlobalStats() {
       if (!globalStatsData) return;
-      
-      // 渲染游戏统计卡片
+
       renderGameStatsCards();
-      
-      // 渲染全球统计图表
+
       renderGlobalStatsChart();
     }
 
-    // 新增：渲染游戏统计卡片
     function renderGameStatsCards() {
       globalStatsGrid.innerHTML = '';
       
@@ -1274,21 +1269,17 @@
       });
     }
 
-    // 新增：渲染全球统计图表
     function renderGlobalStatsChart() {
       const ctx = globalStatsChart.getContext('2d');
-      
-      // 销毁之前的图表实例
+
       if (globalStatsChartInstance) {
         globalStatsChartInstance.destroy();
       }
-      
-      // 准备数据
+
       const aggregatedData = aggregateGlobalDataByTimeRange(globalStatsData.history, currentGlobalTimeRange);
       const labels = Object.keys(aggregatedData).sort();
       const datasets = [];
-      
-      // 为每个游戏创建数据集
+
       const colors = [
         'rgba(110, 231, 183, 0.8)',
         'rgba(120, 126, 255, 0.8)',
@@ -1320,8 +1311,7 @@
         
         colorIndex++;
       });
-      
-      // 创建图例
+
       renderGlobalChartLegend(datasets);
       
       globalStatsChartInstance = new Chart(ctx, {
@@ -1390,7 +1380,6 @@
       });
     }
 
-    // 新增：渲染全球图表图例
     function renderGlobalChartLegend(datasets) {
       globalChartLegend.innerHTML = '';
       
@@ -1405,7 +1394,6 @@
       });
     }
 
-    // 新增：按时间范围聚合全局数据
     function aggregateGlobalDataByTimeRange(historyData, timeRange) {
       const aggregated = {};
       
@@ -1426,13 +1414,11 @@
       return aggregated;
     }
 
-    // 新增：获取时间键
     function getTimeKey(dateString, timeRange) {
       const date = new Date(dateString);
       
       switch (timeRange) {
         case 'week':
-          // 获取该周的第一天（周一）
           const day = date.getDay();
           const diff = date.getDate() - day + (day === 0 ? -6 : 1);
           const weekStart = new Date(date.setDate(diff));
@@ -1441,12 +1427,11 @@
           return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
         case 'year':
           return date.getFullYear().toString();
-        default: // day
+        default:
           return dateString;
       }
     }
 
-    // 新增：根据时间范围格式化日期
     function formatDateByTimeRange(dateString, timeRange) {
       const date = new Date(dateString);
       
@@ -1460,42 +1445,35 @@
           return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' });
         case 'year':
           return date.getFullYear().toString();
-        default: // day
+        default:
           return formatDate(dateString);
       }
     }
 
-    // 新增：改变全局统计时间范围
     function changeGlobalTimeRange(range) {
       currentGlobalTimeRange = range;
-      
-      // 更新按钮状态
+
       document.querySelectorAll('.global-chart-container .time-btn').forEach(btn => {
         btn.classList.toggle('active', btn.textContent === getTimeRangeText(range));
       });
-      
-      // 重新渲染图表
+
       if (globalStatsData) {
         renderGlobalStatsChart();
       }
     }
 
-    // 新增：改变历史数据时间范围
     function changeHistoryTimeRange(range) {
       currentHistoryTimeRange = range;
-      
-      // 更新按钮状态
+
       document.querySelectorAll('.history-modal .time-btn').forEach(btn => {
         btn.classList.toggle('active', btn.textContent === getTimeRangeText(range));
       });
-      
-      // 重新渲染图表
+
       if (currentServerHistoryData) {
         renderHistoryChart(currentServerHistoryData);
       }
     }
 
-    // 新增：获取时间范围文本
     function getTimeRangeText(range) {
       switch (range) {
         case 'week': return '周';
@@ -1505,16 +1483,13 @@
       }
     }
 
-    // 修改：渲染历史数据图表，支持时间范围
     function renderHistoryChart(historyData) {
       const ctx = historyChart.getContext('2d');
-      
-      // 销毁之前的图表实例
+
       if (historyChartInstance) {
         historyChartInstance.destroy();
       }
-      
-      // 按时间范围聚合数据
+
       const aggregatedData = aggregateHistoryDataByTimeRange(historyData.history, currentHistoryTimeRange);
       const labels = Object.keys(aggregatedData).sort();
       const playerCounts = labels.map(label => aggregatedData[label]);
@@ -1598,7 +1573,6 @@
       });
     }
 
-    // 新增：按时间范围聚合历史数据
     function aggregateHistoryDataByTimeRange(historyData, timeRange) {
       const aggregated = {};
       
@@ -1613,39 +1587,32 @@
       return aggregated;
     }
 
-    // 修改：显示服务器历史数据模态框
     function showHistoryModal(server) {
       const key = `${server.ip}:${server.port}`;
       historyServerName.textContent = server.name || '未知服务器';
       historyServerInfo.textContent = `${server.ip}:${server.port} | 服务商: ${server.isp || '-'}`;
-      
-      // 显示加载中状态
+
       historyTableBody.innerHTML = '<tr><td colspan="2" style="text-align: center;">加载中...</td></tr>';
       historyNoData.style.display = 'none';
       historyTableContainer.style.display = 'table';
-      
-      // 重置时间范围
+
       currentHistoryTimeRange = 'day';
       document.querySelectorAll('.history-modal .time-btn').forEach(btn => {
         btn.classList.toggle('active', btn.textContent === '日');
       });
-      
-      // 销毁之前的图表实例
+
       if (historyChartInstance) {
         historyChartInstance.destroy();
         historyChartInstance = null;
       }
-      
-      // 显示模态框
+
       historyModal.classList.add('show');
-      
-      // 设置玩家列表按钮点击事件
+
       playerListBtn.onclick = () => {
         hideHistoryModal();
         showPlayerListModal(server);
       };
 
-      // 获取服务器历史数据
       axios.get(`/api/server-history/${encodeURIComponent(key)}`)
         .then(response => {
           const historyData = response.data;
@@ -1660,7 +1627,6 @@
         });
     }
 
-    // 修改：渲染服务器历史数据
     function renderHistoryData(historyData) {
       if (!historyData.history || Object.keys(historyData.history).length === 0) {
         historyNoData.style.display = 'block';
@@ -1670,8 +1636,7 @@
       
       historyNoData.style.display = 'none';
       historyTableContainer.style.display = 'table';
-      
-      // 渲染表格（显示原始日期数据）
+
       historyTableBody.innerHTML = '';
       const dates = Object.keys(historyData.history).sort();
       dates.forEach(date => {
@@ -1686,12 +1651,10 @@
         row.appendChild(countCell);
         historyTableBody.appendChild(row);
       });
-      
-      // 渲染图表（支持时间范围切换）
+
       renderHistoryChart(historyData);
     }
 
-    // 新增：显示玩家列表模态框
     function showPlayerListModal(server) {
       playerListServerName.textContent = server.name || '未知服务器';
       playerListServerInfo.textContent = `${server.ip}:${server.port} | 服务商: ${server.isp || '-'}`;
@@ -1716,19 +1679,16 @@
       playerListModal.classList.add('show');
     }
 
-    // 新增：隐藏玩家列表模态框
     function hidePlayerListModal() {
       playerListModal.classList.remove('show');
     }
 
-    // 新增：HTML转义函数
     function escapeHtml(text) {
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
     }
 
-    // 其余函数保持不变...
     function startLoadingAnimation(message = '已连接，等待服务器数据') {
       let dots = 1;
       clearInterval(loadingInterval);
@@ -1749,7 +1709,6 @@
       }
     }
 
-    // 新增：显示加载动画
     function showLoading() {
       if (!isLoading) {
         isLoading = true;
@@ -1758,7 +1717,6 @@
       }
     }
 
-    // 新增：隐藏加载动画（确保至少显示1秒）
     function hideLoading() {
       const elapsed = Date.now() - loadingStartTime;
       const remaining = Math.max(0, minLoadingTime - elapsed);
@@ -1873,7 +1831,6 @@
         updateStatus();
         updateLastUpdateTime();
         sessionStorage.setItem('serverData', JSON.stringify(Array.from(serverData.values())));
-        // 当有数据更新时，确保加载动画至少显示1秒
         if (isLoading) {
           hideLoading();
         }
@@ -1950,8 +1907,7 @@
       updateRegionFilterButtonText();
       currentSort = ['players', 'name', 'latency'].includes(urlParams.sort) ? urlParams.sort : 'players';
       sortBtn.textContent = {'players': '按人数排序', 'name': '按名称排序', 'latency': '按延迟排序'}[currentSort];
-      
-      // 设置搜索框内容
+
       searchFilter = urlParams.filter || '';
       searchInput.value = searchFilter;
     }
@@ -1970,8 +1926,7 @@
         checkbox.value = item;
         checkbox.checked = selectedItems.includes(item);
         checkbox.addEventListener('change', () => {
-          // BUG FIX: When filters change, immediately call the render function
-          currentPage = 1; // 重置到第一页
+          currentPage = 1;
           debouncedFilterAndRender();
           if (isRegion) updateRegionFilterButtonText();
           else updateGameFilterButtonText();
@@ -2040,7 +1995,6 @@
       tooltip.textContent = name || '-';
       document.body.appendChild(tooltip);
 
-      // 修复: 计算位置时考虑页面滚动偏移
       const rect = cell.getBoundingClientRect();
       const scrollX = window.scrollX || window.pageXOffset;
       const scrollY = window.scrollY || window.pageYOffset;
@@ -2059,7 +2013,6 @@
       tooltip.style.left = `${x}px`;
       tooltip.style.top = `${y}px`;
 
-      // 调整位置避免超出视口
       const tooltipRect = tooltip.getBoundingClientRect();
       const viewportRight = scrollX + window.innerWidth;
       const viewportBottom = scrollY + window.innerHeight;
@@ -2097,12 +2050,10 @@
       modal.classList.remove('show');
     }
 
-    // 新增：隐藏服务器历史数据模态框
     function hideHistoryModal() {
       historyModal.classList.remove('show');
     }
 
-    // 新增：格式化日期
     function formatDate(dateString) {
       const date = new Date(dateString);
       return date.toLocaleDateString('zh-CN', {
@@ -2112,7 +2063,6 @@
       });
     }
 
-    // 新增：分页功能
     function updatePagination(totalItems, currentPage, itemsPerPage) {
       totalPages = Math.ceil(totalItems / itemsPerPage);
       if (currentPage > totalPages) {
@@ -2122,46 +2072,37 @@
       paginationContainer.innerHTML = '';
       
       if (totalPages <= 1) return;
-      
-      // 上一页按钮
+
       const prevBtn = createPageBtn('上一页', currentPage > 1 ? currentPage - 1 : 1, currentPage === 1);
       paginationContainer.appendChild(prevBtn);
-      
-      // 页码按钮
+
       const pages = [];
-      
-      // 第X-2页
+
       if (currentPage - 2 >= 1) {
         pages.push(currentPage - 2);
       }
-      
-      // 第X-1页
+
       if (currentPage - 1 >= 1) {
         pages.push(currentPage - 1);
       }
-      
-      // 当前页
+
       pages.push(currentPage);
-      
-      // 第X+1页
+
       if (currentPage + 1 <= totalPages) {
         pages.push(currentPage + 1);
       }
-      
-      // 第X+2页
+
       if (currentPage + 2 <= totalPages) {
         pages.push(currentPage + 2);
       }
-      
-      // 去重并排序
+
       const uniquePages = [...new Set(pages)].sort((a, b) => a - b);
       
       uniquePages.forEach(page => {
         const pageBtn = createPageBtn(page, page, page === currentPage);
         paginationContainer.appendChild(pageBtn);
       });
-      
-      // 下一页按钮
+
       const nextBtn = createPageBtn('下一页', currentPage < totalPages ? currentPage + 1 : totalPages, currentPage === totalPages);
       paginationContainer.appendChild(nextBtn);
     }
@@ -2187,34 +2128,29 @@
       
       return btn;
     }
-    
-    // 新增：搜索功能
+
     function setupSearch() {
       searchInput.addEventListener('input', debounce(() => {
         searchFilter = searchInput.value.trim();
-        currentPage = 1; // 搜索时重置到第一页
+        currentPage = 1;
         debouncedFilterAndRender();
         updateURL();
       }, 300));
     }
-    
-    // 新增：筛选服务器（包含搜索）
+
     function filterServers(servers) {
       const selectedGames = getSelectedGames();
       const selectedRegions = getSelectedRegions();
       
       return servers.filter(server => {
-        // 游戏筛选
         if (selectedGames.length > 0 && !selectedGames.includes(server.game_description || '-')) {
           return false;
         }
-        
-        // 地区筛选
+
         if (selectedRegions.length > 0 && !selectedRegions.includes(server.country || 'unknown')) {
           return false;
         }
-        
-        // 搜索筛选
+
         if (searchFilter) {
           const serverName = (server.name || '').toLowerCase();
           const searchTerm = searchFilter.toLowerCase();
@@ -2240,41 +2176,34 @@
     }, 50);
 
     function filterAndRenderTable() {
-      if (isRendering) return; // Prevent re-entry if already rendering
+      if (isRendering) return;
 
       let serversToRender = Array.from(serverData.values());
-      
-      // 应用筛选（游戏、地区、搜索）
+
       serversToRender = filterServers(serversToRender);
       
       sortServers(serversToRender);
 
-      // 更新分页
       updatePagination(serversToRender.length, currentPage, itemsPerPage);
-      
-      // 应用分页
+
       const startIndex = (currentPage - 1) * itemsPerPage;
       const endIndex = startIndex + itemsPerPage;
       serversToRender = serversToRender.slice(startIndex, endIndex);
 
-      // 修复：在渲染前锁定表格容器高度
       if (tableContainer) {
         const currentHeight = tableContainer.scrollHeight;
         tableContainer.style.setProperty('--table-container-height', `${currentHeight}px`);
         tableContainer.classList.add('lock-height');
       }
 
-      // BUG FIX: The key now includes the ORDER of servers by mapping their unique keys.
-      // This ensures that a change in sorting (which changes the order) will trigger a re-render.
       const serversKey = JSON.stringify(serversToRender.map(s => s.ip + ':' + s.port));
       if (serversKey === lastRenderedKey) {
-        // 修复：如果内容没有变化，也需要移除高度锁定
         if (tableContainer) {
           setTimeout(() => {
             tableContainer.classList.remove('lock-height');
           }, 10);
         }
-        return; // Nothing changed, no need to re-render.
+        return;
       }
       lastRenderedKey = serversKey;
       
@@ -2303,12 +2232,10 @@
       });
     }
 
-    // --- ANIMATION MAGIC: Heavily refactored renderTable with FLIP ---
     function renderTable(servers) {
       const oldPositions = new Map();
       const existingRows = new Map();
 
-      // 1. FIRST: Record the initial position of all existing rows.
       tbody.querySelectorAll('[data-key]').forEach(row => {
           oldPositions.set(row.dataset.key, row.getBoundingClientRect());
           existingRows.set(row.dataset.key, row);
@@ -2318,32 +2245,27 @@
       const updatedKeys = new Set();
       const newRowsToAnimate = [];
 
-      // Build the new table body in a fragment for performance
       servers.forEach(server => {
           const key = `${server.ip}:${server.port}`;
           updatedKeys.add(key);
-          const [dataRow, tagRow] = createRow(server); // 现在返回两个行
+          const [dataRow, tagRow] = createRow(server);
           fragment.appendChild(dataRow);
           fragment.appendChild(tagRow);
           newRowsToAnimate.push(dataRow);
       });
-      
-      // Handle rows that need to be removed
+
       existingRows.forEach((row, key) => {
           if (!updatedKeys.has(key)) {
               row.classList.add('removing');
               setTimeout(() => row.remove(), 300);
           }
       });
-      
-      // 2. LAST: Apply the changes to the DOM in one go.
+
       tbody.innerHTML = '';
       tbody.appendChild(fragment);
 
-      // Animate new rows
       newRowsToAnimate.forEach(row => row.classList.add('new-row'));
 
-      // 3. INVERT & PLAY: Animate the rows that moved.
       const rowsToMove = [];
       tbody.querySelectorAll('[data-key]').forEach(row => {
           const oldPos = oldPositions.get(row.dataset.key);
@@ -2358,14 +2280,13 @@
               rowsToMove.push(row);
           }
       });
-      
-      // This forces the browser to apply the transform before starting the transition.
+
       requestAnimationFrame(() => {
           rowsToMove.forEach(row => {
               row.classList.add('moving');
-              row.style.transform = ''; // Animate back to its natural position
+              row.style.transform = '';
           });
-          // Clean up the animation class after it's finished.
+
           rowsToMove.forEach(row => {
               row.addEventListener('transitionend', () => {
                   row.classList.remove('moving');
@@ -2375,25 +2296,20 @@
 
       processLatencyUpdates();
 
-      // 修复：在动画结束后移除高度锁定
       if (tableContainer) {
-        // 清除之前的定时器
         if (scrollHideTimer) {
           clearTimeout(scrollHideTimer);
         }
-        // 设置定时器在动画结束后移除高度锁定
         scrollHideTimer = setTimeout(() => {
           tableContainer.classList.remove('lock-height');
           scrollHideTimer = null;
-        }, 500); // 调整为匹配FLIP动画时间（0.5s），更平滑
+        }, 500);
       }
     }
-    
-    // 修改：创建行函数，现在返回两个行（数据行和标签行）
+
     function createRow(server) {
         const key = `${server.ip}:${server.port}`;
-        
-        // 创建数据行
+
         const dataRow = document.createElement('tr');
         dataRow.dataset.key = key;
         dataRow.classList.toggle('zero-players', server.current_players === 0);
@@ -2418,7 +2334,6 @@
         const cellName = createCell(dataRow, 'name', server.name || '-');
         cellName.addEventListener('mouseenter', e => showTooltip(cellName, server.name, e));
         cellName.addEventListener('mouseleave', hideTooltip);
-        // 修改：点击服务器名称时显示历史数据
         cellName.addEventListener('click', () => showHistoryModal(server));
         cellName.addEventListener('touchstart', e => { e.preventDefault(); showHistoryModal(server); });
         
@@ -2436,12 +2351,11 @@
         createCell(dataRow, 'version', server.version || '-');
         createCell(dataRow, 'latency', server.latency ?? '-');
 
-        // 创建标签行
         const tagRow = document.createElement('tr');
         tagRow.className = 'tag-row';
         tagRow.dataset.key = key + '-tags';
         const tagCell = document.createElement('td');
-        tagCell.colSpan = 10; // 跨所有列
+        tagCell.colSpan = 10;
         const tagContainer = document.createElement('div');
         tagContainer.className = 'tag-container';
         
@@ -2450,7 +2364,8 @@
             const tagElement = document.createElement('span');
             tagElement.className = 'tag';
             tagElement.textContent = tag;
-            tagElement.style.backgroundColor = getTagColor(tag);
+            const tagColor = getTagColor(tag);
+            tagElement.style.borderColor = tagColor; // 不透明边框
             tagContainer.appendChild(tagElement);
           });
         } else {
@@ -2470,7 +2385,7 @@
     function updateCellContent(cell, newContent) {
       const str = String(newContent);
       if (cell.textContent !== str) {
-        cell.textContent = str; // textContent 已安全，转义HTML
+        cell.textContent = str;
       }
     }
 
@@ -2491,7 +2406,7 @@
         }
       });
       latencyUpdateQueue.clear();
-    }, 200); // 微调debounce时间为200ms，提升响应
+    }, 200);
 
     function createCell(row, className, text = '') {
       const cell = row.insertCell();
@@ -2538,12 +2453,12 @@
     }
 
     window.onload = () => {
-      showLoading(); // 显示加载动画
+      showLoading();
       urlParams = parseURLParams();
       loadCachedData();
       startUpdateTimer();
       connectWebSocket();
-      setupSearch(); // 初始化搜索功能
+      setupSearch();
 
       document.addEventListener('click', (e) => {
         if (currentTooltip && !e.target.closest('.name')) {
