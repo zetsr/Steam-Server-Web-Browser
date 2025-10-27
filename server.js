@@ -681,10 +681,10 @@ async function queryServerInfo(ip, port) {
           // 只推送这些字段：GameVersion_s、Location_s、ServerType_i、EAC_b、FGV_s、RDY_b、PVE_b、RP_b、UFL_b
           const allowedKeys = [
             { key: 'GameVersion_s', type: 'string' },
+            { key: 'FGV_s', type: 'string' },
             { key: 'Location_s', type: 'string' },
             { key: 'ServerType_i', type: 'servertype' }, // 特殊处理：映射为友好字符串或不推送
             { key: 'EAC_b', type: 'bool' },
-            { key: 'FGV_s', type: 'string' },
             // { key: 'RDY_b', type: 'bool' },
             { key: 'PVE_b', type: 'bool' },
             { key: 'RP_b', type: 'bool' },
