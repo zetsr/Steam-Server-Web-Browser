@@ -39,6 +39,37 @@
     }
     @keyframes bgDrift { 0% { transform: translateY(0) scale(1) rotate(-2deg); } 100% { transform: translateY(-8px) scale(1.02) rotate(-1deg); } }
 
+    /* 自定义滚动条样式 */
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(255,255,255,0.02);
+      border-radius: 5px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.1);
+      border-radius: 5px;
+      border: 2px solid rgba(0,0,0,0.2);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255,255,255,0.15);
+    }
+
+    ::-webkit-scrollbar-corner {
+      background: rgba(0,0,0,0.1);
+    }
+
+    /* Firefox 滚动条样式 */
+    html {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.1) rgba(255,255,255,0.02);
+    }
+
     .app{ max-width:1200px; width: calc(100% - 56px); margin:28px auto; padding:20px; border-radius:16px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00)); box-shadow: var(--shadow-strong); position:relative; overflow:visible; border:1px solid rgba(255,255,255,0.02); backdrop-filter: blur(6px) saturate(1.05); }
 
     .header{ display:flex; align-items:center; gap:16px; margin-bottom:16px; position: relative; }
@@ -251,16 +282,19 @@
       margin-bottom: 20px;
       border-bottom: 1px solid rgba(255,255,255,0.06);
       padding-bottom: 15px;
+      position: relative;
     }
     .history-title {
       font-size: 20px;
       margin: 0 0 8px 0;
       color: var(--accent);
+      padding-right: 200px; /* 为按钮留出空间 */
     }
     .history-subtitle {
       color: var(--muted);
       margin: 0;
       font-size: 14px;
+      padding-right: 200px; /* 为按钮留出空间 */
     }
     .history-chart-container {
       margin-bottom: 20px;
@@ -607,6 +641,101 @@
       transform: translateY(0);
     }
 
+    /* 新增：标签行样式 */
+    tr.tag-row {
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.003));
+      border-bottom: 1px solid rgba(255,255,255,0.02);
+    }
+
+    tr.tag-row td {
+      padding: 12px 10px;
+      border-top: none;
+      vertical-align: middle;
+    }
+
+    .tag-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .tag {
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      color: white;
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      transition: all 0.2s var(--ease);
+    }
+
+    .tag:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    /* 调整表格行高以适应标签行 */
+    tbody tr {
+      height: 48px; /* 原高度 */
+    }
+
+    tbody tr.tag-row {
+      height: 60px; /* 标签行高度 */
+    }
+
+    /* 玩家列表模态框样式 */
+    .player-list-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    .player-list-table th,
+    .player-list-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .player-list-table th {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 13px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.014), rgba(255,255,255,0.006));
+    }
+
+    .player-list-table td {
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .player-list-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .player-list-btn {
+      position: absolute;
+      top: 10px;
+      right: 60px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(110,231,183,0.06), rgba(110,231,183,0.02));
+      border: 1px solid rgba(110,231,183,0.12);
+      color: var(--text);
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s var(--ease);
+    }
+
+    .player-list-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(2,6,23,0.6);
+      background: linear-gradient(180deg, rgba(110,231,183,0.08), rgba(110,231,183,0.04));
+    }
+
     @media (max-width: 680px) {
       .app { width: calc(100% - 24px); padding:12px; margin:12px auto; max-width:none; }
       .controls { flex-direction:column; align-items:stretch; gap:10px; }
@@ -722,6 +851,14 @@
       }
       .time-controls {
         flex-wrap: wrap;
+      }
+      .player-list-btn {
+        position: static;
+        margin-top: 10px;
+        width: 100%;
+      }
+      .history-title, .history-subtitle {
+        padding-right: 0;
       }
     }
 
@@ -858,6 +995,7 @@
       <div class="history-header">
         <h2 class="history-title" id="historyServerName">服务器名称</h2>
         <p class="history-subtitle" id="historyServerInfo">IP:端口 | 服务商: -</p>
+        <button class="player-list-btn" id="playerListBtn">玩家列表</button>
       </div>
       
       <div class="time-controls">
@@ -884,6 +1022,33 @@
       </div>
       <div class="no-data" id="historyNoData" style="display: none;">
         暂无历史数据
+      </div>
+    </div>
+  </div>
+
+  <!-- 新增：玩家列表模态框 -->
+  <div class="modal" id="playerListModal">
+    <div class="modal-content">
+      <button class="close-btn" onclick="hidePlayerListModal()">×</button>
+      <div class="history-header">
+        <h2 class="history-title" id="playerListServerName">服务器名称</h2>
+        <p class="history-subtitle" id="playerListServerInfo">IP:端口 | 服务商: -</p>
+      </div>
+      <div id="playerListContainer">
+        <table class="player-list-table">
+          <thead>
+            <tr>
+              <th>玩家名称</th>
+              <th>在线时间</th>
+              <th>分数</th>
+            </tr>
+          </thead>
+          <tbody id="playerListTableBody">
+          </tbody>
+        </table>
+      </div>
+      <div class="no-data" id="playerListNoData" style="display: none;">
+        暂无玩家在线
       </div>
     </div>
   </div>
@@ -924,10 +1089,18 @@
     const historyTableBody = document.getElementById('historyTableBody');
     const historyNoData = document.getElementById('historyNoData');
     const historyTableContainer = document.getElementById('historyTableContainer');
+    const playerListBtn = document.getElementById('playerListBtn');
 
     // 新增：全局统计数据相关元素
     const globalStatsChart = document.getElementById('globalStatsChart');
     const globalChartLegend = document.getElementById('globalChartLegend');
+
+    // 新增：玩家列表相关元素
+    const playerListModal = document.getElementById('playerListModal');
+    const playerListServerName = document.getElementById('playerListServerName');
+    const playerListServerInfo = document.getElementById('playerListServerInfo');
+    const playerListTableBody = document.getElementById('playerListTableBody');
+    const playerListNoData = document.getElementById('playerListNoData');
 
     let serverData = new Map();
     let uniqueGames = new Set();
@@ -969,11 +1142,30 @@
     // 新增：全局统计数据
     let globalStatsData = null;
 
+    // 新增：标签颜色映射
+    let tagColors = new Map();
+
     let ws = null;
     let reconnectDelay = 5000;
     const maxReconnectDelay = 60000;
     let reconnectTimeoutId = null;
     let reconnectCountdownIntervalId = null;
+
+    // 新增：生成标签颜色
+    function getTagColor(tag) {
+      if (!tagColors.has(tag)) {
+        // 使用确定性哈希生成颜色，确保相同标签颜色一致
+        let hash = 0;
+        for (let i = 0; i < tag.length; i++) {
+          hash = tag.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const hue = hash % 360;
+        const saturation = 70 + (hash % 20); // 70-90%
+        const lightness = 45 + (hash % 15); // 45-60%
+        tagColors.set(tag, `hsl(${hue}, ${saturation}%, ${lightness}%)`);
+      }
+      return tagColors.get(tag);
+    }
 
     function parseURLParams() {
       const params = new URLSearchParams(window.location.search);
@@ -1425,7 +1617,7 @@
     function showHistoryModal(server) {
       const key = `${server.ip}:${server.port}`;
       historyServerName.textContent = server.name || '未知服务器';
-      historyServerInfo.textContent = `${server.ip}:${server.port} > ${server.isp || '-'}`;
+      historyServerInfo.textContent = `${server.ip}:${server.port} | 服务商: ${server.isp || '-'}`;
       
       // 显示加载中状态
       historyTableBody.innerHTML = '<tr><td colspan="2" style="text-align: center;">加载中...</td></tr>';
@@ -1447,6 +1639,12 @@
       // 显示模态框
       historyModal.classList.add('show');
       
+      // 设置玩家列表按钮点击事件
+      playerListBtn.onclick = () => {
+        hideHistoryModal();
+        showPlayerListModal(server);
+      };
+
       // 获取服务器历史数据
       axios.get(`/api/server-history/${encodeURIComponent(key)}`)
         .then(response => {
@@ -1491,6 +1689,43 @@
       
       // 渲染图表（支持时间范围切换）
       renderHistoryChart(historyData);
+    }
+
+    // 新增：显示玩家列表模态框
+    function showPlayerListModal(server) {
+      playerListServerName.textContent = server.name || '未知服务器';
+      playerListServerInfo.textContent = `${server.ip}:${server.port} | 服务商: ${server.isp || '-'}`;
+
+      if (server.players && server.players.length > 0) {
+        playerListTableBody.innerHTML = '';
+        server.players.forEach(player => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${escapeHtml(player.name)}</td>
+            <td>${player.duration}</td>
+            <td>${player.score}</td>
+          `;
+          playerListTableBody.appendChild(row);
+        });
+        playerListNoData.style.display = 'none';
+      } else {
+        playerListTableBody.innerHTML = '';
+        playerListNoData.style.display = 'block';
+      }
+
+      playerListModal.classList.add('show');
+    }
+
+    // 新增：隐藏玩家列表模态框
+    function hidePlayerListModal() {
+      playerListModal.classList.remove('show');
+    }
+
+    // 新增：HTML转义函数
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
     }
 
     // 其余函数保持不变...
@@ -1645,7 +1880,6 @@
       }, 500);
       
       ws.addEventListener('message', debouncedFullUpdate);
-
 
       ws.onerror = (error) => {
         console.error("WebSocket error:", error);
@@ -2088,28 +2322,10 @@
       servers.forEach(server => {
           const key = `${server.ip}:${server.port}`;
           updatedKeys.add(key);
-          const ipPort = `${server.ip}:${server.port}`;
-          const isZeroPlayers = server.current_players === 0;
-          let row = existingRows.get(key);
-
-          if (row) {
-              // Update existing row's content
-              updateCellContent(row.cells[1], server.game_description || '-');
-              updateCellContent(row.cells[2], server.name || '-');
-              row.cells[3].querySelector('.ip-link').textContent = ipPort;
-              updateCellContent(row.cells[4], server.isp || '-');
-              updateCellContent(row.cells[5], server.os || '-');
-              updateCellContent(row.cells[6], `${server.current_players ?? '?'}/${server.max_players ?? '?'}`);
-              updateCellContent(row.cells[7], server.map || '-');
-              updateCellContent(row.cells[8], server.version || '-');
-              queueLatencyUpdate(row.cells[9], server.latency ?? '-', key);
-              row.classList.toggle('zero-players', isZeroPlayers);
-          } else {
-              // Create a new row
-              row = createRow(server);
-              newRowsToAnimate.push(row);
-          }
-          fragment.appendChild(row);
+          const [dataRow, tagRow] = createRow(server); // 现在返回两个行
+          fragment.appendChild(dataRow);
+          fragment.appendChild(tagRow);
+          newRowsToAnimate.push(dataRow);
       });
       
       // Handle rows that need to be removed
@@ -2173,16 +2389,19 @@
       }
     }
     
+    // 修改：创建行函数，现在返回两个行（数据行和标签行）
     function createRow(server) {
-        const row = document.createElement('tr');
         const key = `${server.ip}:${server.port}`;
-        row.dataset.key = key;
-        row.classList.toggle('zero-players', server.current_players === 0);
+        
+        // 创建数据行
+        const dataRow = document.createElement('tr');
+        dataRow.dataset.key = key;
+        dataRow.classList.toggle('zero-players', server.current_players === 0);
 
         const countryCode = (server.country || 'unknown').toLowerCase();
         const ipPort = `${server.ip}:${server.port}`;
 
-        const cellCountry = row.insertCell();
+        const cellCountry = dataRow.insertCell();
         cellCountry.className = 'country';
         if (countryCode !== 'unknown') {
             const flagImg = document.createElement('img');
@@ -2195,31 +2414,58 @@
             cellCountry.textContent = '?';
         }
 
-        createCell(row, 'game', server.game_description || '-');
-        const cellName = createCell(row, 'name', server.name || '-');
+        createCell(dataRow, 'game', server.game_description || '-');
+        const cellName = createCell(dataRow, 'name', server.name || '-');
         cellName.addEventListener('mouseenter', e => showTooltip(cellName, server.name, e));
         cellName.addEventListener('mouseleave', hideTooltip);
         // 修改：点击服务器名称时显示历史数据
         cellName.addEventListener('click', () => showHistoryModal(server));
         cellName.addEventListener('touchstart', e => { e.preventDefault(); showHistoryModal(server); });
         
-        const cellIp = createCell(row, 'ip');
+        const cellIp = createCell(dataRow, 'ip');
         const link = document.createElement('a');
         link.href = `steam://connect/${ipPort}`;
         link.className = 'ip-link';
         link.textContent = ipPort;
         cellIp.appendChild(link);
 
-        createCell(row, 'isp', server.isp || '-');
-        createCell(row, 'os', server.os || '-');
-        createCell(row, 'players', `${server.current_players ?? '?'}/${server.max_players ?? '?'}`);
-        createCell(row, 'map', server.map || '-');
-        createCell(row, 'version', server.version || '-');
-        createCell(row, 'latency', server.latency ?? '-');
+        createCell(dataRow, 'isp', server.isp || '-');
+        createCell(dataRow, 'os', server.os || '-');
+        createCell(dataRow, 'players', `${server.current_players ?? '?'}/${server.max_players ?? '?'}`);
+        createCell(dataRow, 'map', server.map || '-');
+        createCell(dataRow, 'version', server.version || '-');
+        createCell(dataRow, 'latency', server.latency ?? '-');
 
-        return row;
+        // 创建标签行
+        const tagRow = document.createElement('tr');
+        tagRow.className = 'tag-row';
+        tagRow.dataset.key = key + '-tags';
+        const tagCell = document.createElement('td');
+        tagCell.colSpan = 10; // 跨所有列
+        const tagContainer = document.createElement('div');
+        tagContainer.className = 'tag-container';
+        
+        if (server.tags && server.tags.length > 0) {
+          server.tags.forEach(tag => {
+            const tagElement = document.createElement('span');
+            tagElement.className = 'tag';
+            tagElement.textContent = tag;
+            tagElement.style.backgroundColor = getTagColor(tag);
+            tagContainer.appendChild(tagElement);
+          });
+        } else {
+          const noTags = document.createElement('span');
+          noTags.textContent = '无标签';
+          noTags.style.color = 'var(--muted)';
+          noTags.style.fontStyle = 'italic';
+          tagContainer.appendChild(noTags);
+        }
+        
+        tagCell.appendChild(tagContainer);
+        tagRow.appendChild(tagCell);
+
+        return [dataRow, tagRow];
     }
-
 
     function updateCellContent(cell, newContent) {
       const str = String(newContent);
@@ -2313,6 +2559,11 @@
           hideHistoryModal();
         }
         
+        const playerListModal = document.getElementById('playerListModal');
+        if (playerListModal.classList.contains('show') && e.target === playerListModal) {
+          hidePlayerListModal();
+        }
+        
         if (!gameFilter.contains(e.target)) gameFilter.classList.remove('open');
         if (!regionFilter.contains(e.target)) regionFilter.classList.remove('open');
         if (!sortDropdown.contains(e.target)) sortDropdown.classList.remove('open');
@@ -2320,5 +2571,4 @@
     };
   </script>
 </body>
-
 </html>
