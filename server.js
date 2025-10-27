@@ -213,7 +213,8 @@ let serverHistory = {};
 let globalStats = { // 新增：全局统计数据
   games: {},
   history: {},
-  lastUpdated: null
+  lastUpdated: null,
+  currentOnline: 0 // 新增：当前在线玩家总数
 };
 let isUpdatingServerInfo = false;
 let lastHistoryDate = null;
@@ -254,17 +255,17 @@ async function initializeGlobalStatsFile() {
       log(`成功加载全局统计数据，包含 ${Object.keys(globalStats.games).length} 个游戏的数据`);
     } else {
       log('global_stats.json 为空，初始化为空对象');
-      globalStats = { games: {}, history: {}, lastUpdated: null };
+      globalStats = { games: {}, history: {}, lastUpdated: null, currentOnline: 0 };
     }
   } catch (err) {
     if (err.code === 'ENOENT') {
       log('global_stats.json 不存在，正在创建...');
-      await fs.writeFile(GLOBAL_STATS_FILE, JSON.stringify({ games: {}, history: {}, lastUpdated: null }, null, 2), 'utf8');
-      globalStats = { games: {}, history: {}, lastUpdated: null };
+      await fs.writeFile(GLOBAL_STATS_FILE, JSON.stringify({ games: {}, history: {}, lastUpdated: null, currentOnline: 0 }, null, 2), 'utf8');
+      globalStats = { games: {}, history: {}, lastUpdated: null, currentOnline: 0 };
       log('global_stats.json 创建成功');
     } else {
       log(`检查或读取 global_stats.json 失败: ${err.message}`);
-      globalStats = { games: {}, history: {}, lastUpdated: null };
+      globalStats = { games: {}, history: {}, lastUpdated: null, currentOnline: 0 };
     }
   }
 }
@@ -745,10 +746,10 @@ function checkAndResetHistoryIfNewDay() {
   return false;
 }
 
-// 修改：更新服务器历史数据 - 修复历史数据保存问题
+// 修复问题1：修改更新服务器历史数据函数，防止数据膨胀
 async function updateServerHistory(serverInfo) {
   try {
-    const key = `${serverInfo.ip}:${server.port}`;
+    const key = `${serverInfo.ip}:${serverInfo.port}`;
     const today = getLocalDateString();
     
     // 确保服务器历史数据存在
@@ -763,9 +764,12 @@ async function updateServerHistory(serverInfo) {
     
     // 更新今天的在线人数（取最大值）
     const serverData = serverHistory[key];
-    if (!serverData.history[today] || serverInfo.current_players > serverData.history[today]) {
-      serverData.history[today] = serverInfo.current_players;
-      log(`更新服务器历史数据: ${key} - ${today}: ${serverInfo.current_players} 玩家`);
+    const currentPlayers = serverInfo.current_players || 0;
+    
+    // 只在当前玩家数大于0且大于历史记录时才更新
+    if (currentPlayers > 0 && (!serverData.history[today] || currentPlayers > serverData.history[today])) {
+      serverData.history[today] = currentPlayers;
+      log(`更新服务器历史数据: ${key} - ${today}: ${currentPlayers} 玩家`);
     }
     
     // 清理超过30天的数据
@@ -785,7 +789,7 @@ async function updateServerHistory(serverInfo) {
   }
 }
 
-// 新增：更新全局统计数据
+// 修复问题2：修改更新全局统计数据函数，立即更新历史记录
 async function updateGlobalStats(serverInfo) {
   try {
     const today = getLocalDateString();
@@ -810,27 +814,37 @@ async function updateGlobalStats(serverInfo) {
       gameData.name = serverInfo.game_description;
     }
     
-    // 更新总服务器数量（基于当前活动服务器）
-    gameData.totalServers = Array.from(serverMap.values())
-      .filter(server => server.appId === appId && server.lastData)
-      .length;
+    // 重新计算总服务器数量和当前在线玩家数
+    let totalServers = 0;
+    let currentPlayers = 0;
     
-    // 更新当前在线人数
-    gameData.currentPlayers = (gameData.currentPlayers || 0) + (serverInfo.current_players || 0);
+    // 遍历所有服务器，统计该游戏的数据
+    for (const [key, server] of serverMap.entries()) {
+      if (server.appId === appId && server.lastData && !server.lastData.offline) {
+        totalServers++;
+        currentPlayers += server.lastData.current_players || 0;
+      }
+    }
+    
+    gameData.totalServers = totalServers;
+    gameData.currentPlayers = currentPlayers;
     
     // 确保历史数据存在
     if (!globalStats.history[today]) {
       globalStats.history[today] = {};
     }
     
-    // 更新今天的最大在线人数（取最大值）
-    if (!globalStats.history[today][appId] || serverInfo.current_players > globalStats.history[today][appId]) {
-      globalStats.history[today][appId] = serverInfo.current_players;
+    // 修复问题2：立即更新今天的最大在线人数
+    const todayPlayers = globalStats.history[today][appId] || 0;
+    if (currentPlayers > todayPlayers) {
+      globalStats.history[today][appId] = currentPlayers;
+      log(`立即更新全局历史记录: ${appId} - ${today}: ${currentPlayers} 玩家`);
     }
     
     // 更新游戏的历史最大在线人数
-    if (serverInfo.current_players > gameData.maxPlayers) {
-      gameData.maxPlayers = serverInfo.current_players;
+    if (currentPlayers > gameData.maxPlayers) {
+      gameData.maxPlayers = currentPlayers;
+      log(`更新游戏历史最大在线人数: ${appId}: ${gameData.maxPlayers} 玩家`);
     }
     
     // 更新最后更新时间
@@ -853,6 +867,7 @@ async function updateGlobalStats(serverInfo) {
   }
 }
 
+// 修复问题3：确保单个服务器历史数据正常工作
 async function updateServerInfo() {
   if (isUpdatingServerInfo) {
     log('上一次更新仍在进行中，跳过本次执行');
@@ -868,6 +883,9 @@ async function updateServerInfo() {
     
     const keys = Array.from(serverMap.keys());
     log(`开始并发查询 ${keys.length} 台服务器信息（并发上限 ${CONCURRENCY}）`);
+
+    // 重置当前在线玩家总数
+    globalStats.currentOnline = 0;
 
     const results = await asyncPool(keys, CONCURRENCY, async (key) => {
       const server = serverMap.get(key);
@@ -886,11 +904,14 @@ async function updateServerInfo() {
         server.failureCount = 0;
         server.lastSuccessful = Date.now();
         
-        // 更新服务器历史数据
+        // 修复问题1：更新服务器历史数据（防止膨胀）
         await updateServerHistory(data);
         
-        // 新增：更新全局统计数据
+        // 修复问题2：更新全局统计数据（立即更新历史记录）
         await updateGlobalStats(data);
+        
+        // 累加当前在线玩家总数
+        globalStats.currentOnline += (data.current_players || 0);
         
         return data;
       } else {
@@ -924,7 +945,7 @@ async function updateServerInfo() {
         }
       });
     });
-    log(`推送了 ${pushDatas.length} 个服务器更新到 ${clients.size} 个客户端`);
+    log(`推送了 ${pushDatas.length} 个服务器更新到 ${clients.size} 个客户端，当前在线玩家总数: ${globalStats.currentOnline}`);
     broadcastVisitorCount();
   } catch (err) {
     log(`更新服务器信息失败: ${err.message}`);
@@ -1121,4 +1142,5 @@ app.use(express.static(__dirname));
 startServersAndServices().catch(err => {
   log(`启动失败: ${err && err.message ? err.message : err}`);
   process.exit(1);
+
 });
