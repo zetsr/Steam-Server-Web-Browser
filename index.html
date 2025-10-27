@@ -1156,6 +1156,9 @@
     let reconnectTimeoutId = null;
     let reconnectCountdownIntervalId = null;
 
+    // 标签缓存机制
+    let tagCache = new Map(); // key -> { tags: [], disappearCount: {} }
+
     function getTagColor(tag) {
       if (!tagColors.has(tag)) {
         let hash = 0;
@@ -1168,6 +1171,60 @@
         tagColors.set(tag, `hsl(${hue}, ${saturation}%, ${lightness}%)`);
       }
       return tagColors.get(tag);
+    }
+
+    // 处理标签缓存的函数
+    function processTagsWithCache(key, newTags) {
+      // 获取缓存
+      let cache = tagCache.get(key);
+      
+      // 如果没有缓存，初始化
+      if (!cache) {
+        cache = {
+          tags: [...(newTags || [])],
+          disappearCount: {}
+        };
+        tagCache.set(key, cache);
+        return cache.tags;
+      }
+      
+      // 如果新标签无效，直接返回缓存的标签
+      if (!newTags || !Array.isArray(newTags)) {
+        return cache.tags;
+      }
+      
+      const currentTags = new Set(newTags);
+      const cachedTags = new Set(cache.tags);
+      
+      // 更新消失计数
+      // 对于缓存中的每个标签，如果不在新标签中，增加消失计数
+      cache.tags.forEach(tag => {
+        if (!currentTags.has(tag)) {
+          cache.disappearCount[tag] = (cache.disappearCount[tag] || 0) + 1;
+        } else {
+          // 如果标签重新出现，重置消失计数
+          cache.disappearCount[tag] = 0;
+        }
+      });
+      
+      // 添加新标签
+      newTags.forEach(tag => {
+        if (!cachedTags.has(tag)) {
+          cache.tags.push(tag);
+          cache.disappearCount[tag] = 0; // 新标签的消失计数为0
+        }
+      });
+      
+      // 移除连续消失60次的标签
+      cache.tags = cache.tags.filter(tag => {
+        if (cache.disappearCount[tag] >= 60) {
+          delete cache.disappearCount[tag];
+          return false;
+        }
+        return true;
+      });
+      
+      return cache.tags;
     }
 
     function parseURLParams() {
@@ -1590,7 +1647,7 @@
     function showHistoryModal(server) {
       const key = `${server.ip}:${server.port}`;
       historyServerName.textContent = server.name || '未知服务器';
-      historyServerInfo.textContent = `${server.ip}:${server.port} | 服务商: ${server.isp || '-'}`;
+      historyServerInfo.textContent = `${server.ip}:${server.port} | ${server.isp || '-'}`;
 
       historyTableBody.innerHTML = '<tr><td colspan="2" style="text-align: center;">加载中...</td></tr>';
       historyNoData.style.display = 'none';
@@ -1657,7 +1714,7 @@
 
     function showPlayerListModal(server) {
       playerListServerName.textContent = server.name || '未知服务器';
-      playerListServerInfo.textContent = `${server.ip}:${server.port} | 服务商: ${server.isp || '-'}`;
+      playerListServerInfo.textContent = `${server.ip}:${server.port} | ${server.isp || '-'}`;
 
       if (server.players && server.players.length > 0) {
         playerListTableBody.innerHTML = '';
@@ -1729,12 +1786,27 @@
 
     function loadCachedData() {
       const cachedDataStr = sessionStorage.getItem('serverData');
+      const cachedTagCacheStr = sessionStorage.getItem('tagCache');
+      
+      if (cachedTagCacheStr) {
+        try {
+          tagCache = new Map(JSON.parse(cachedTagCacheStr));
+        } catch (e) {
+          console.error("Failed to parse cached tag cache:", e);
+          tagCache = new Map();
+        }
+      }
+      
       if (cachedDataStr) {
         try {
           const cachedData = JSON.parse(cachedDataStr);
           if (Array.isArray(cachedData)) {
             cachedData.forEach(server => {
               const key = `${server.ip}:${server.port}`;
+              // 应用标签缓存
+              if (tagCache.has(key)) {
+                server.tags = tagCache.get(key).tags;
+              }
               serverData.set(key, server);
             });
             updateFiltersFromData();
@@ -1761,6 +1833,10 @@
       const gameDesc = server.game_description || '-';
       if (gameDesc === '-') return false;
       const key = `${server.ip}:${server.port}`;
+      
+      // 应用标签缓存逻辑
+      server.tags = processTagsWithCache(key, server.tags);
+      
       serverData.set(key, server);
 
       const regionDesc = server.country || 'unknown';
@@ -1831,6 +1907,8 @@
         updateStatus();
         updateLastUpdateTime();
         sessionStorage.setItem('serverData', JSON.stringify(Array.from(serverData.values())));
+        // 保存标签缓存
+        sessionStorage.setItem('tagCache', JSON.stringify(Array.from(tagCache.entries())));
         if (isLoading) {
           hideLoading();
         }
