@@ -90,6 +90,7 @@ let CONCURRENCY = 10;
 let INFO_TIMEOUT = 2000;
 let UpdateServerIPsTimeMs = 600 * 1000;
 let UpdateServerInfoTimeMs = 30 * 1000;
+let MAX_MISSING_VMS_COUNT = 3; // 新增：连续不在VMS列表中的最大次数
 
 try {
   if (rawArgs.port !== undefined) {
@@ -179,6 +180,15 @@ try {
     }
   }
 
+  if (rawArgs.max_missing_vms_count !== undefined) {
+    const c = toInt(rawArgs.max_missing_vms_count, MAX_MISSING_VMS_COUNT);
+    if (c && c > 0) {
+      MAX_MISSING_VMS_COUNT = c;
+    } else {
+      console.warn(`[WARN] 无效的 MAX_MISSING_VMS_COUNT 值 "${rawArgs.max_missing_vms_count}"，使用默认 MAX_MISSING_VMS_COUNT=${MAX_MISSING_VMS_COUNT}`);
+    }
+  }
+
 } catch (e) {
   console.warn('[WARN] 解析启动参数时发生异常，使用全部默认配置：', e && e.message ? e.message : e);
 }
@@ -194,6 +204,7 @@ function logStartConfig() {
   console.log(`INFO_TIMEOUT: ${INFO_TIMEOUT} ms`);
   console.log(`UpdateServerIPsTime: ${Math.floor(UpdateServerIPsTimeMs / 1000)} s (${UpdateServerIPsTimeMs} ms)`);
   console.log(`UpdateServerInfoTime: ${Math.floor(UpdateServerInfoTimeMs / 1000)} s (${UpdateServerInfoTimeMs} ms)`);
+  console.log(`MAX_MISSING_VMS_COUNT: ${MAX_MISSING_VMS_COUNT}`); // 新增
   console.log('------------------------------------------------');
 }
 logStartConfig();
@@ -226,6 +237,9 @@ let lastHistoryDate = null;
 
 // 内存中的 tags 缓存结构：{ "<ip:port>": { tags: [...], lastUpdated: ms, diffCount: 0 } }
 let tagsCache = {};
+
+// 修复BUG2：追踪VMS中的服务器
+let vmsServerSet = new Set(); // 存储当前VMS中的服务器
 
 function log(message) {
   const now = new Date();
@@ -370,7 +384,9 @@ async function initializeServerListFile() {
           appId: server.appId || null,
           lastSuccessful: server.lastSuccessful || 0,
           failureCount: 0,
-          lastData: null
+          lastData: null,
+          missingVmsCount: 0, // 修复BUG2：新增missingVmsCount字段
+          lastUpdateTime: 0
         });
       });
       log(`成功加载服务器列表，包含 ${serverMap.size} 个服务器`);
@@ -434,7 +450,8 @@ async function saveServerList() {
       ip,
       port: parseInt(port),
       appId: val.appId,
-      lastSuccessful: val.lastSuccessful
+      lastSuccessful: val.lastSuccessful,
+      missingVmsCount: val.missingVmsCount || 0 // 修复BUG2：保存missingVmsCount
     };
   });
   const tempFile = SERVER_LIST_FILE + '.tmp';
@@ -620,8 +637,7 @@ function arraysEqualIgnoreOrder(a, b) {
   return true;
 }
 
-// 修复：改进的服务器查询函数 - 添加规则查询和标签生成（仅推送指定字段）
-// 并实现 tags 本地缓存策略
+// 修复BUG2：改进的服务器查询函数 - 只在成功时返回数据，失败时返回null
 async function queryServerInfo(ip, port) {
   try {
     const serverKey = `${ip}:${port}`;
@@ -775,7 +791,7 @@ async function queryServerInfo(ip, port) {
           // 将 newTags 赋给 tags 以便推送（我们会依据缓存策略决定是否写缓存）
           tags = uniq;
 
-          // 缓存策略：只要任意 allowedKey 存在，就视为“查询成功”，并按下面规则处理缓存
+          // 缓存策略：只要任意 allowedKey 存在，就视为"查询成功"，并按下面规则处理缓存
           if (foundAnyAllowedKey) {
             const existing = tagsCache[serverKey];
             if (!existing) {
@@ -1030,6 +1046,7 @@ async function getMasterServerList(appId, filter = {}) {
   }
 }
 
+// 修复BUG2：更新服务器IP列表时更新vmsServerSet
 async function updateServerIPs() {
   let appIds = [];
   try {
@@ -1042,11 +1059,67 @@ async function updateServerIPs() {
   }
 
   let newServers = [];
+  const newVmsServerSet = new Set(); // 新的VMS服务器集合
+  
   for (const appId of appIds) {
     const servers = await getMasterServerList(appId);
     newServers = newServers.concat(servers);
   }
 
+  // 构建新的VMS服务器集合
+  newServers.forEach(server => {
+    newVmsServerSet.add(`${server.ip}:${server.port}`);
+  });
+
+  // 更新VMS服务器集合
+  vmsServerSet = newVmsServerSet;
+  log(`VMS服务器列表已更新，包含 ${vmsServerSet.size} 个服务器`);
+
+  // 修复BUG2：检查哪些服务器不在VMS中
+  const serversToRemove = [];
+  for (const [key, server] of serverMap.entries()) {
+    if (vmsServerSet.has(key)) {
+      // 服务器在VMS中，重置missingVmsCount
+      server.missingVmsCount = 0;
+    } else {
+      // 服务器不在VMS中，增加missingVmsCount
+      server.missingVmsCount = (server.missingVmsCount || 0) + 1;
+      log(`服务器 ${key} 不在VMS中，missingVmsCount: ${server.missingVmsCount}/${MAX_MISSING_VMS_COUNT}`);
+      
+      if (server.missingVmsCount >= MAX_MISSING_VMS_COUNT) {
+        serversToRemove.push(key);
+        log(`服务器 ${key} 连续 ${server.missingVmsCount} 次不在VMS中，将被移除`);
+      } else {
+        // 标记为离线（延迟-1）但不移除
+        if (server.lastData) {
+          const offlineData = {
+            ...server.lastData,
+            offline: true,
+            current_players: 0,
+            players: [],
+            latency: -1
+          };
+          server.lastData = offlineData;
+          
+          // 推送给客户端
+          clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(serializeBigInt(offlineData));
+            }
+          });
+          log(`服务器 ${key} 标记为离线（不在VMS中）`);
+        }
+      }
+    }
+  }
+
+  // 移除连续不在VMS中的服务器
+  serversToRemove.forEach(key => {
+    serverMap.delete(key);
+    log(`已移除服务器: ${key}`);
+  });
+
+  // 添加新的服务器
   const uniqueNewServers = newServers.filter(server => !serverMap.has(`${server.ip}:${server.port}`));
   if (uniqueNewServers.length > 0) {
     uniqueNewServers.forEach(server => {
@@ -1055,13 +1128,19 @@ async function updateServerIPs() {
         appId: server.appId,
         lastSuccessful: Date.now(),
         failureCount: 0,
-        lastData: null
+        lastData: null,
+        missingVmsCount: 0, // 新增missingVmsCount字段
+        lastUpdateTime: 0
       });
     });
     await saveServerList();
     log(`新增 ${uniqueNewServers.length} 个服务器IP到 server_list.json`);
   } else {
     log('没有新的服务器IP');
+  }
+
+  if (serversToRemove.length > 0 || uniqueNewServers.length > 0) {
+    await saveServerList();
   }
 }
 
@@ -1087,7 +1166,7 @@ function checkAndResetHistoryIfNewDay() {
   return false;
 }
 
-// 修复问题1：修改更新服务器历史数据函数，防止数据膨胀
+// 修复BUG1：修改更新服务器历史数据函数，确保每天都有记录
 async function updateServerHistory(serverInfo) {
   try {
     const key = `${serverInfo.ip}:${serverInfo.port}`;
@@ -1107,8 +1186,9 @@ async function updateServerHistory(serverInfo) {
     const serverData = serverHistory[key];
     const currentPlayers = serverInfo.current_players || 0;
     
-    // 只在当前玩家数大于0且大于历史记录时才更新
-    if (currentPlayers > 0 && (!serverData.history[today] || currentPlayers > serverData.history[today])) {
+    // 修复BUG1：总是更新今天的记录，即使是0
+    // 这样可以确保即使一整天没有玩家，也会记录0
+    if (!serverData.history[today] || currentPlayers > serverData.history[today]) {
       serverData.history[today] = currentPlayers;
       log(`更新服务器历史数据: ${key} - ${today}: ${currentPlayers} 玩家`);
     }
@@ -1130,7 +1210,7 @@ async function updateServerHistory(serverInfo) {
   }
 }
 
-// 修复问题2：修改更新全局统计数据函数，立即更新历史记录
+// 修复BUG1：修改全局历史数据更新函数
 async function updateGlobalStats(serverInfo) {
   try {
     const today = getLocalDateString();
@@ -1175,11 +1255,16 @@ async function updateGlobalStats(serverInfo) {
       globalStats.history[today] = {};
     }
     
-    // 修复问题2：立即更新今天的最大在线人数
+    // 修复BUG1：确保每个游戏每天都有记录
+    // 即使今天没有在线玩家，也要记录0
     const todayPlayers = globalStats.history[today][appId] || 0;
     if (currentPlayers > todayPlayers) {
       globalStats.history[today][appId] = currentPlayers;
       log(`立即更新全局历史记录: ${appId} - ${today}: ${currentPlayers} 玩家`);
+    } else if (globalStats.history[today][appId] === undefined) {
+      // 如果今天还没有记录，记录0
+      globalStats.history[today][appId] = 0;
+      log(`初始化全局历史记录: ${appId} - ${today}: 0 玩家`);
     }
     
     // 更新游戏的历史最大在线人数
@@ -1208,7 +1293,7 @@ async function updateGlobalStats(serverInfo) {
   }
 }
 
-// 修复问题3：确保单个服务器历史数据正常工作
+// 修复BUG2：修改服务器信息更新函数，不再因A2S ping超时而标记为-1
 async function updateServerInfo() {
   if (isUpdatingServerInfo) {
     log('上一次更新仍在进行中，跳过本次执行');
@@ -1222,7 +1307,18 @@ async function updateServerInfo() {
       log(`新的一天开始，将继续记录历史数据: ${lastHistoryDate}`);
     }
     
-    const keys = Array.from(serverMap.keys());
+    // 修复BUG2：只查询在VMS中的服务器
+    const keys = Array.from(serverMap.entries())
+      .filter(([key, server]) => {
+        // 只查询在VMS中且missingVmsCount为0的服务器
+        const inVms = vmsServerSet.has(key) && (server.missingVmsCount || 0) === 0;
+        if (!inVms) {
+          log(`跳过查询服务器 ${key}，不在VMS中或已被标记为离线`);
+        }
+        return inVms;
+      })
+      .map(([key]) => key);
+    
     log(`开始并发查询 ${keys.length} 台服务器信息（并发上限 ${CONCURRENCY}）`);
 
     // 重置当前在线玩家总数
@@ -1232,6 +1328,13 @@ async function updateServerInfo() {
       const server = serverMap.get(key);
       const [ip, portStr] = key.split(':');
       const port = parseInt(portStr);
+      
+      // 修复BUG2：如果服务器不在VMS中，直接返回null
+      if (!vmsServerSet.has(key) || (server.missingVmsCount || 0) > 0) {
+        log(`服务器 ${key} 不在VMS中，跳过查询`);
+        return null;
+      }
+      
       const info = await queryServerInfo(ip, port);
       if (info) {
         const geo = await getGeoInfo(ip);
@@ -1244,11 +1347,12 @@ async function updateServerInfo() {
         server.lastData = data;
         server.failureCount = 0;
         server.lastSuccessful = Date.now();
+        server.lastUpdateTime = Date.now();
         
-        // 修复问题1：更新服务器历史数据（防止膨胀）
+        // 更新服务器历史数据
         await updateServerHistory(data);
         
-        // 修复问题2：更新全局统计数据（立即更新历史记录）
+        // 更新全局统计数据
         await updateGlobalStats(data);
         
         // 累加当前在线玩家总数
@@ -1256,25 +1360,17 @@ async function updateServerInfo() {
         
         return data;
       } else {
+        // 修复BUG2：A2S ping失败时不做任何事情，保持原有数据
+        // 只更新失败计数但不标记为离线
         server.failureCount = (server.failureCount || 0) + 1;
-        if (server.failureCount >= 3) {
-          if (server.lastData) {
-            const offlineData = {
-              ...server.lastData,
-              offline: true,
-              current_players: 0,
-              players: [],
-              latency: -1
-            };
-            server.lastData = offlineData;
-            return offlineData;
-          } else {
-            serverMap.delete(key);
-            return null;
-          }
-        } else {
-          return null;
+        log(`服务器 ${key} A2S查询失败，失败次数: ${server.failureCount}，保持原有数据`);
+        
+        // 如果服务器有旧数据，返回旧数据但不标记为离线
+        if (server.lastData) {
+          return server.lastData;
         }
+        
+        return null;
       }
     });
 
